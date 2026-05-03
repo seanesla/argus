@@ -8,6 +8,7 @@ import {
 } from '@/lib/medications'
 import { setMode, useMode } from '@/lib/mode'
 import MedicationForm from '@/components/MedicationForm'
+import AddMedicationDialog from '@/components/AddMedicationDialog'
 import type { Medication } from '@/types'
 
 function formatDate(iso: string | null) {
@@ -31,7 +32,13 @@ function formatTime(hhmm: string) {
 }
 
 function lowStock(med: Medication) {
-  return med.pillsRemaining <= med.refillThreshold
+  // Only flag low-stock when both numbers are configured. A fresh entry with
+  // pillsRemaining=0 and refillThreshold=0 isn't "low" — it's untracked.
+  return (
+    med.refillThreshold > 0 &&
+    med.pillsRemaining > 0 &&
+    med.pillsRemaining <= med.refillThreshold
+  )
 }
 
 export default function MedicationsPage() {
@@ -39,20 +46,21 @@ export default function MedicationsPage() {
   const mode = useMode()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [photoOpen, setPhotoOpen] = useState(false)
 
   function onAdd(m: Medication) {
-    addMedication(m)
+    void addMedication(m)
     setAdding(false)
   }
 
   function onUpdate(m: Medication) {
-    updateMedication(m.id, m)
+    void updateMedication(m.id, m)
     setEditingId(null)
   }
 
   function onDelete(id: string, name: string) {
     if (!confirm(`remove ${name}?`)) return
-    removeMedication(id)
+    void removeMedication(id)
   }
 
   return (
@@ -67,13 +75,22 @@ export default function MedicationsPage() {
           </p>
         </div>
         {!adding && (
-          <button
-            type="button"
-            className="composer-send"
-            onClick={() => setAdding(true)}
-          >
-            + add medication
-          </button>
+          <div className="meds-header-actions">
+            <button
+              type="button"
+              className="chip"
+              onClick={() => setPhotoOpen(true)}
+            >
+              + from photo
+            </button>
+            <button
+              type="button"
+              className="composer-send"
+              onClick={() => setAdding(true)}
+            >
+              + add medication
+            </button>
+          </div>
         )}
       </header>
 
@@ -139,14 +156,18 @@ export default function MedicationsPage() {
                   <dt>Frequency</dt>
                   <dd>{med.frequency}</dd>
                 </div>
-                <div className="med-row">
-                  <dt>Stops</dt>
-                  <dd>{formatDate(med.stopAt)}</dd>
-                </div>
-                <div className="med-row">
-                  <dt>Prescriber</dt>
-                  <dd>{med.prescriber}</dd>
-                </div>
+                {med.stopAt && (
+                  <div className="med-row">
+                    <dt>Stops</dt>
+                    <dd>{formatDate(med.stopAt)}</dd>
+                  </div>
+                )}
+                {med.prescriber && (
+                  <div className="med-row">
+                    <dt>Prescriber</dt>
+                    <dd>{med.prescriber}</dd>
+                  </div>
+                )}
               </dl>
 
               <div className="med-times">
@@ -178,7 +199,7 @@ export default function MedicationsPage() {
                 <button
                   type="button"
                   className="chip"
-                  onClick={() => markDoseTaken(med.id)}
+                  onClick={() => void markDoseTaken(med.id)}
                   disabled={med.pillsRemaining <= 0}
                 >
                   mark as taken
@@ -202,6 +223,8 @@ export default function MedicationsPage() {
           )
         })}
       </div>
+
+      <AddMedicationDialog open={photoOpen} onClose={() => setPhotoOpen(false)} />
     </div>
   )
 }

@@ -4,6 +4,8 @@ import {
   isGeminiConfigured,
   pickRelevantCorrelation,
   streamChat,
+  type AddMedicationInput,
+  type ChatTools,
   type ChatTurn,
 } from '@/lib/gemini'
 import { extractSymptoms } from '@/lib/symptomExtractor'
@@ -14,7 +16,7 @@ import {
   useSymptoms,
   addSymptoms,
 } from '@/lib/symptoms'
-import { useMedications } from '@/lib/medications'
+import { addMedication, useMedications } from '@/lib/medications'
 import { useConsent } from '@/lib/consent'
 import ConsentModal from '@/components/ConsentModal'
 import {
@@ -24,8 +26,56 @@ import {
   useActiveConversation,
   type ChatMessage,
 } from '@/lib/chats'
+import type { Frequency, Medication } from '@/types'
 
 const SEEN_CORRELATIONS_KEY = 'argus.seen-correlations.v1'
+
+const ALLOWED_FREQUENCIES: Frequency[] = [
+  'Once daily',
+  'Twice daily',
+  'Three times daily',
+  'Four times daily',
+  'Every other day',
+  'Weekly',
+  'As needed',
+]
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function inputToMedication(input: AddMedicationInput): Medication {
+  const matched = ALLOWED_FREQUENCIES.find(
+    (f) => f.toLowerCase() === input.frequency?.toLowerCase().trim(),
+  )
+  const prescribedAt = input.prescribedAt || todayISO()
+  return {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    dosage: input.dosage.trim(),
+    frequency: matched ?? 'Once daily',
+    scheduledTimes: input.scheduledTimes ?? [],
+    prescribedAt,
+    startAt: prescribedAt,
+    stopAt: null,
+    pillsRemaining: input.pillsRemaining ?? 0,
+    refillThreshold: input.refillThreshold ?? 0,
+    refillsLeft: input.refillsLeft ?? 0,
+    prescriber: input.prescriber?.trim() ?? '',
+    notes: input.notes?.trim() || undefined,
+  }
+}
+
+const CHAT_TOOLS: ChatTools = {
+  async addMedication(input) {
+    if (!input?.name?.trim()) throw new Error('name is required')
+    if (!input?.dosage?.trim()) throw new Error('dosage is required')
+    if (!input?.frequency?.trim()) throw new Error('frequency is required')
+    const med = inputToMedication(input)
+    await addMedication(med)
+    return { id: med.id, name: med.name }
+  },
+}
 
 function loadSeen(): string[] {
   try {
@@ -170,14 +220,13 @@ export default function ChatPage() {
     try {
       let acc = ''
       const relevant = pickRelevantCorrelation(trimmed, correlations)
-      for await (const chunk of streamChat(
+      for await (const chunk of streamChat(baseHistory, trimmed, {
         meds,
         correlations,
         recentSymptoms,
-        relevant?.summary ?? null,
-        baseHistory,
-        trimmed,
-      )) {
+        relevantSummary: relevant?.summary ?? null,
+        tools: CHAT_TOOLS,
+      })) {
         acc += chunk
         setMessages((m) =>
           m.map((msg) =>
@@ -204,7 +253,7 @@ export default function ChatPage() {
     }
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!draftRef.current) return
     void send(draftRef.current.value)
@@ -319,4 +368,3 @@ export default function ChatPage() {
     </div>
   )
 }
-
