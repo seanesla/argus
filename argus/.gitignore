@@ -23,7 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
-
-# hide the .env file which contains the API key
+# Env / secrets
 .env
-.env.*
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
