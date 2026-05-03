@@ -6,6 +6,8 @@ import {
   streamChat,
   type ChatTurn,
 } from '@/lib/gemini'
+import { runSlashCommand, SLASH_HELP, isSlashCommand } from '@/lib/slashCommands'
+import ChartAttachment from '@/components/charts/ChartAttachment'
 import { extractSymptoms } from '@/lib/symptomExtractor'
 import {
   correlationKey,
@@ -44,9 +46,9 @@ function saveSeen(keys: string[]): void {
 
 const SUGGESTIONS = [
   'felt dizzy this morning around 8',
-  'how many lisinopril do i have left?',
-  'mild headache around 2pm',
-  'draft a refill request for atorvastatin',
+  'how are my refills looking?',
+  '/symptoms 14d',
+  '/schedule',
 ]
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -137,6 +139,58 @@ export default function ChatPage() {
     setMessages((m) => [...m, userMsg, assistantMsg])
     if (draftRef.current) draftRef.current.value = ''
 
+    // Slash commands run locally — no LLM round-trip.
+    if (isSlashCommand(trimmed)) {
+      const lower = trimmed.toLowerCase()
+      if (lower === '/help' || lower === '/?') {
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content: ['available commands:', ...SLASH_HELP].join('\n'),
+                  pending: false,
+                }
+              : msg,
+          ),
+        )
+        return
+      }
+      const result = runSlashCommand(trimmed, {
+        meds,
+        symptoms,
+        correlations,
+      })
+      if (result) {
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content: result.reply,
+                  attachments: [result.attachment],
+                  pending: false,
+                }
+              : msg,
+          ),
+        )
+        return
+      }
+      // Unknown slash — fall through to normal LLM behavior with a hint.
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: `unknown command. try /help for the list.`,
+                pending: false,
+              }
+            : msg,
+        ),
+      )
+      return
+    }
+
     if (!isGeminiConfigured) {
       setMessages((m) =>
         m.map((msg) =>
@@ -174,16 +228,30 @@ export default function ChatPage() {
         meds,
         correlations,
         recentSymptoms,
+        symptoms,
         relevant?.summary ?? null,
         baseHistory,
         trimmed,
       )) {
-        acc += chunk
-        setMessages((m) =>
-          m.map((msg) =>
-            msg.id === assistantId ? { ...msg, content: acc } : msg,
-          ),
-        )
+        if (chunk.type === 'text') {
+          acc += chunk.text
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantId ? { ...msg, content: acc } : msg,
+            ),
+          )
+        } else if (chunk.type === 'attachment') {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantId
+                ? {
+                    ...msg,
+                    attachments: [...(msg.attachments ?? []), chunk.payload],
+                  }
+                : msg,
+            ),
+          )
+        }
       }
       setMessages((m) =>
         m.map((msg) =>
@@ -271,6 +339,13 @@ export default function ChatPage() {
               <div className="log-body">
                 {m.content || (m.pending ? '…' : '')}
               </div>
+              {m.attachments && m.attachments.length > 0 && (
+                <div className="log-attachments">
+                  {m.attachments.map((att, i) => (
+                    <ChartAttachment key={i} attachment={att} />
+                  ))}
+                </div>
+              )}
               {m.loggedSymptoms && m.loggedSymptoms.length > 0 && (
                 <div className="log-receipt">
                   <div className="log-receipt-label">

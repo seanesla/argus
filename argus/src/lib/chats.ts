@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getMode, MODE_EVENT } from './mode'
 import type { SymptomEntry } from '@/types'
+import type { ChartAttachment } from './chatTools'
 
 export interface ChatMessage {
   id: string
@@ -9,6 +10,7 @@ export interface ChatMessage {
   createdAt: string
   pending?: boolean
   loggedSymptoms?: SymptomEntry[]
+  attachments?: ChartAttachment[]
 }
 
 export interface Conversation {
