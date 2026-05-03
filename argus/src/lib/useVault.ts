@@ -97,3 +97,10 @@ export async function updateMed(med: Medication): Promise<void> {
 export function useVault(): VaultState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
+
+// Non-hook accessor for callers (e.g. medications.ts shim) that need the
+// current meds without subscribing — the React components that render meds
+// already subscribe via useVault().
+export function getMedsSnapshot(): Medication[] {
+  return state.meds
+}

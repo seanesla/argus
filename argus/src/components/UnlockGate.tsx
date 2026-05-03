@@ -1,10 +1,15 @@
 import { useState, type ReactNode } from 'react'
 import { destroyVault, setupAndUnlock, unlock, useVault } from '@/lib/useVault'
+import { useMode } from '@/lib/mode'
 
 const MIN_PASSPHRASE_LENGTH = 8
 
 export default function UnlockGate({ children }: { children: ReactNode }) {
+  const mode = useMode()
   const { status } = useVault()
+
+  // Demo mode is unencrypted by design — skip the gate entirely.
+  if (mode === 'demo') return <>{children}</>
 
   if (status === 'loading') {
     return (

@@ -2,7 +2,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import UnlockGate from './components/UnlockGate'
 import ChatPage from './pages/ChatPage'
+import HistoryPage from './pages/HistoryPage'
 import MedicationsPage from './pages/MedicationsPage'
+import PatternsPage from './pages/PatternsPage'
 import './App.css'
 
 function App() {
@@ -12,6 +14,8 @@ function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<ChatPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/patterns" element={<PatternsPage />} />
             <Route path="/medications" element={<MedicationsPage />} />
           </Route>
         </Routes>

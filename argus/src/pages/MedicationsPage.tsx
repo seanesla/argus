@@ -1,8 +1,15 @@
 import { useState } from 'react'
-import { medications as DEMO_MEDS } from '../data/medications'
-import type { Medication } from '../types'
-import { setMeds, useVault } from '@/lib/useVault'
+import {
+  addMedication,
+  markDoseTaken,
+  removeMedication,
+  updateMedication,
+  useMedications,
+} from '@/lib/medications'
+import { setMode, useMode } from '@/lib/mode'
+import MedicationForm from '@/components/MedicationForm'
 import AddMedicationDialog from '@/components/AddMedicationDialog'
+import type { Medication } from '@/types'
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Ongoing'
@@ -27,75 +34,105 @@ function formatTime(hhmm: string) {
 function lowStock(med: Medication) {
   // Only flag low-stock when both numbers are configured. A fresh entry with
   // pillsRemaining=0 and refillThreshold=0 isn't "low" — it's untracked.
-  return med.refillThreshold > 0 && med.pillsRemaining > 0 && med.pillsRemaining <= med.refillThreshold
+  return (
+    med.refillThreshold > 0 &&
+    med.pillsRemaining > 0 &&
+    med.pillsRemaining <= med.refillThreshold
+  )
 }
 
 export default function MedicationsPage() {
-  const { meds } = useVault()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const meds = useMedications()
+  const mode = useMode()
+  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [photoOpen, setPhotoOpen] = useState(false)
 
-  if (meds.length === 0) {
-    return (
-      <div className="meds">
-        <header className="meds-header">
-          <div>
-            <h1 className="meds-title">medications</h1>
-            <p className="meds-subtitle">no prescriptions yet.</p>
-          </div>
-          <button
-            type="button"
-            className="meds-add-btn"
-            onClick={() => setDialogOpen(true)}
-          >
-            + add medication
-          </button>
-        </header>
+  function onAdd(m: Medication) {
+    void addMedication(m)
+    setAdding(false)
+  }
 
-        <div className="meds-empty">
-          <p>your vault is empty. add your meds, or load demo data to explore.</p>
-          <div className="meds-empty-actions">
-            <button
-              type="button"
-              className="meds-empty-action"
-              onClick={() => setDialogOpen(true)}
-            >
-              add medication
-            </button>
-            <button
-              type="button"
-              className="meds-empty-action meds-empty-action-secondary"
-              onClick={() => void setMeds(DEMO_MEDS)}
-            >
-              load demo data
-            </button>
-          </div>
-        </div>
+  function onUpdate(m: Medication) {
+    void updateMedication(m.id, m)
+    setEditingId(null)
+  }
 
-        <AddMedicationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
-      </div>
-    )
+  function onDelete(id: string, name: string) {
+    if (!confirm(`remove ${name}?`)) return
+    void removeMedication(id)
   }
 
   return (
     <div className="meds">
       <header className="meds-header">
         <div>
-          <h1 className="meds-title">medications</h1>
+          <h1 className="meds-title">Medications</h1>
           <p className="meds-subtitle">
-            {meds.length} active prescription{meds.length === 1 ? '' : 's'} tracked by argus.
+            {meds.length === 0
+              ? 'no medications yet.'
+              : `${meds.length} active prescription${meds.length === 1 ? '' : 's'} tracked by Argus.`}
           </p>
         </div>
-        <button
-          type="button"
-          className="meds-add-btn"
-          onClick={() => setDialogOpen(true)}
-        >
-          + add medication
-        </button>
+        {!adding && (
+          <div className="meds-header-actions">
+            <button
+              type="button"
+              className="chip"
+              onClick={() => setPhotoOpen(true)}
+            >
+              + from photo
+            </button>
+            <button
+              type="button"
+              className="composer-send"
+              onClick={() => setAdding(true)}
+            >
+              + add medication
+            </button>
+          </div>
+        )}
       </header>
+
+      {adding && (
+        <MedicationForm onSave={onAdd} onCancel={() => setAdding(false)} />
+      )}
+
+      {meds.length === 0 && !adding && (
+        <div className="meds-empty">
+          <p>no medications on file.</p>
+          <p className="meds-empty-hint">
+            {mode === 'real' ? (
+              <>
+                add your first medication above, or{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setMode('demo')}
+                >
+                  switch to demo mode
+                </button>{' '}
+                to see an example.
+              </>
+            ) : (
+              <>add your first medication above.</>
+            )}
+          </p>
+        </div>
+      )}
 
       <div className="meds-grid">
         {meds.map((med) => {
+          if (editingId === med.id) {
+            return (
+              <MedicationForm
+                key={med.id}
+                initial={med}
+                onSave={onUpdate}
+                onCancel={() => setEditingId(null)}
+              />
+            )
+          }
           const low = lowStock(med)
           return (
             <article key={med.id} className={`med-card${low ? ' med-card-low' : ''}`}>
@@ -157,12 +194,37 @@ export default function MedicationsPage() {
                     : 'no refills left, doctor approval needed.'}
                 </div>
               )}
+
+              <div className="med-card-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => void markDoseTaken(med.id)}
+                  disabled={med.pillsRemaining <= 0}
+                >
+                  mark as taken
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setEditingId(med.id)}
+                >
+                  edit
+                </button>
+                <button
+                  type="button"
+                  className="chip med-card-delete"
+                  onClick={() => onDelete(med.id, med.name)}
+                >
+                  delete
+                </button>
+              </div>
             </article>
           )
         })}
       </div>
 
-      <AddMedicationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <AddMedicationDialog open={photoOpen} onClose={() => setPhotoOpen(false)} />
     </div>
   )
 }

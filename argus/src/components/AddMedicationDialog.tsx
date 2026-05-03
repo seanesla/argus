@@ -4,7 +4,7 @@ import {
   isGeminiConfigured,
   type ExtractedMedication,
 } from '@/lib/gemini'
-import { addMed } from '@/lib/useVault'
+import { addMedication } from '@/lib/medications'
 import type { Frequency, Medication } from '@/types'
 
 interface Draft {
@@ -154,7 +154,7 @@ export default function AddMedicationDialog({ open, onClose }: Props) {
     setError(null)
     try {
       const extracted = await extractMedicationFromImage(imageFile)
-      await addMed(extractedToMedication(extracted))
+      await addMedication(extractedToMedication(extracted))
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -172,7 +172,7 @@ export default function AddMedicationDialog({ open, onClose }: Props) {
     setBusy(true)
     setError(null)
     try {
-      await addMed(draftToMedication(draft))
+      await addMedication(draftToMedication(draft))
       onClose()
     } finally {
       setBusy(false)
