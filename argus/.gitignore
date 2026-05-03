@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# hide the .env file which contains the API key
+.env
+.env.*
