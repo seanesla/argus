@@ -34,6 +34,8 @@ export interface SymptomEntry {
   rawText: string
 }
 
+export type Confidence = 'suggestive' | 'consistent' | 'strong'
+
 export interface Correlation {
   symptom: string
   medicationId: string
@@ -43,4 +45,18 @@ export interface Correlation {
   observedDays: number
   scheduledTime: string
   summary: string
+  confidence: Confidence
+  wilsonLower: number
+  lift: number
+  pOverall: number
+  outOfWindowSymptomDays: number
+  lookbackDaysCovered: number
+}
+
+export interface DismissedCorrelation {
+  symptom: string
+  medicationId: string
+  scheduledTime: string
+  until: string
+  baselineMatchRate: number
 }

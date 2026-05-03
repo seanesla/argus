@@ -1,13 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useMedications } from '@/lib/medications'
 import { useMode } from '@/lib/mode'
 import {
+  dismissCorrelation,
   findCorrelations,
   removeSymptom,
   resetDemoData,
+  useDismissed,
   useSymptoms,
 } from '@/lib/symptoms'
-import type { SymptomEntry } from '@/types'
+import { useConsent } from '@/lib/consent'
+import ConsentModal from '@/components/ConsentModal'
+import type { Correlation, SymptomEntry } from '@/types'
 
 const dayFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
@@ -34,14 +38,43 @@ function groupByDay(entries: SymptomEntry[]) {
   return Array.from(groups.entries())
 }
 
+function buildCopyBlock(
+  c: Correlation,
+  totalSymptomLogs: number,
+  startIso: string,
+  endIso: string,
+): string {
+  const hours = (c.windowMinutes / 60).toFixed(c.windowMinutes % 60 === 0 ? 0 : 1)
+  return [
+    'Argus pattern observation',
+    '=========================',
+    `Date range: ${startIso} → ${endIso}`,
+    `Medication: ${c.medicationName}, scheduled at ${c.scheduledTime}`,
+    `Symptom: ${c.symptom} (self-reported in plain English)`,
+    `Time window: within ${hours} hours after the dose`,
+    `Match: ${c.matchedDays} of ${c.observedDays} dose-days in this period`,
+    `Symptom logs in this period (any time of day): ${totalSymptomLogs}`,
+    `Confidence (per Argus' internal heuristic): ${c.confidence}`,
+    `Lift over baseline: ${c.lift.toFixed(1)}×`,
+    `Out-of-window occurrences of the same symptom: ${c.outOfWindowSymptomDays} day(s)`,
+    '',
+    'This is patient self-report from a hackathon prototype. It is not a',
+    'clinical measurement and not a medical diagnosis. Argus shows',
+    'co-occurrence, not causation.',
+  ].join('\n')
+}
+
 export default function PatternsPage() {
   const entries = useSymptoms()
   const meds = useMedications()
+  const dismissed = useDismissed()
   const mode = useMode()
+  const consented = useConsent()
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const correlations = useMemo(
-    () => findCorrelations(entries, meds),
-    [entries, meds],
+    () => findCorrelations(entries, meds, dismissed),
+    [entries, meds, dismissed],
   )
 
   const grouped = useMemo(() => groupByDay(entries), [entries])
@@ -52,6 +85,37 @@ export default function PatternsPage() {
 
   function onReset() {
     resetDemoData()
+  }
+
+  function onDismiss(c: Correlation) {
+    dismissCorrelation(c)
+  }
+
+  async function onCopy(c: Correlation) {
+    const days = entries
+      .map((e) => e.occurredAt.slice(0, 10))
+      .sort()
+    const start = days[0] ?? new Date().toISOString().slice(0, 10)
+    const end = new Date().toISOString().slice(0, 10)
+    const block = buildCopyBlock(c, entries.length, start, end)
+    try {
+      await navigator.clipboard.writeText(block)
+      const key = `${c.symptom}|${c.medicationId}|${c.scheduledTime}`
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 2000)
+    } catch {
+      // Fallback: select-and-copy a hidden textarea
+      const ta = document.createElement('textarea')
+      ta.value = block
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+  }
+
+  if (!consented) {
+    return <ConsentModal />
   }
 
   return (
@@ -72,19 +136,48 @@ export default function PatternsPage() {
           </div>
         ) : (
           <div className="insights-list">
-            {correlations.map((c) => (
-              <article
-                key={`${c.medicationId}-${c.scheduledTime}-${c.symptom}`}
-                className="insight-card"
-              >
-                <div className="insight-summary">{c.summary}</div>
-                <div className="insight-meta">
-                  based on last {c.observedDays} days · ±
-                  {c.windowMinutes} min window · {c.matchedDays}/{c.observedDays}{' '}
-                  match rate
-                </div>
-              </article>
-            ))}
+            {correlations.map((c) => {
+              const cKey = `${c.symptom}|${c.medicationId}|${c.scheduledTime}`
+              const copied = copiedKey === cKey
+              return (
+                <article
+                  key={cKey}
+                  className={`insight-card insight-${c.confidence}`}
+                >
+                  <div className="insight-card-header">
+                    <span className={`confidence-chip confidence-${c.confidence}`}>
+                      {c.confidence}
+                    </span>
+                  </div>
+                  <div className="insight-summary">{c.summary}</div>
+                  <div className="insight-meta">
+                    {c.matchedDays}/{c.observedDays} dose-days · ±
+                    {c.windowMinutes} min window · lift {c.lift.toFixed(1)}×
+                  </div>
+                  <div className="insight-disclaimer">
+                    self-reported pattern from your log. argus shows
+                    co-occurrence, not cause. not medical advice.
+                  </div>
+                  <div className="insight-actions">
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => onCopy(c)}
+                    >
+                      {copied ? 'copied' : 'copy for doctor'}
+                    </button>
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => onDismiss(c)}
+                      title="hide for 7 days; will resurface if it gets more frequent"
+                    >
+                      snooze 7d
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         )}
       </section>

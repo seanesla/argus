@@ -45,6 +45,14 @@ export function updateMedication(id: string, patch: Partial<Medication>): Medica
   return next
 }
 
+export function markDoseTaken(id: string): Medication[] {
+  const next = loadMedications().map((m) =>
+    m.id === id ? { ...m, pillsRemaining: Math.max(0, m.pillsRemaining - 1) } : m,
+  )
+  saveMedications(next)
+  return next
+}
+
 export function removeMedication(id: string): Medication[] {
   const next = loadMedications().filter((m) => m.id !== id)
   saveMedications(next)
