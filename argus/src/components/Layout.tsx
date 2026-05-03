@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import AccentPicker from './AccentPicker'
 import ModeToggle from './ModeToggle'
 import FaultyTerminal from './FaultyTerminal'
+import RefillBanner from './RefillBanner'
 import { ACCENT_HEX, useAccent } from '@/lib/accent'
 
 function EyeMark() {
@@ -86,10 +87,15 @@ export default function Layout() {
           <div className="sidebar-footer">
             <ModeToggle />
             <AccentPicker />
+            <div className="status-pill">
+              <span className="status-dot" />
+              agent online
+            </div>
           </div>
         </aside>
 
         <main className="main">
+          <RefillBanner />
           <Outlet />
         </main>
       </div>
