@@ -14,6 +14,8 @@ export const medications: Medication[] = [
     refillThreshold: 7,
     refillsLeft: 2,
     prescriber: 'Dr. Patel',
+    pharmacyId: 'ph-northgate',
+    rxNumber: 'RX-1042871',
     notes: 'Take with water, morning.',
   },
   {
@@ -25,10 +27,12 @@ export const medications: Medication[] = [
     stopAt: null,
     frequency: 'Twice daily',
     scheduledTimes: ['08:00', '20:00'],
-    pillsRemaining: 14,
+    pillsRemaining: 9,
     refillThreshold: 10,
     refillsLeft: 1,
     prescriber: 'Dr. Patel',
+    pharmacyId: 'ph-northgate',
+    rxNumber: 'RX-1042872',
     notes: 'Take with meals to reduce GI upset.',
   },
   {
@@ -44,6 +48,8 @@ export const medications: Medication[] = [
     refillThreshold: 0,
     refillsLeft: 0,
     prescriber: 'Dr. Nguyen',
+    pharmacyId: 'ph-bayside',
+    rxNumber: 'RX-2298104',
     notes: 'Finish entire course even if symptoms improve.',
   },
   {
@@ -59,6 +65,8 @@ export const medications: Medication[] = [
     refillThreshold: 7,
     refillsLeft: 0,
     prescriber: 'Dr. Patel',
+    pharmacyId: 'ph-northgate',
+    rxNumber: 'RX-1042873',
     notes: 'Evening dose. Avoid grapefruit.',
   },
   {
@@ -74,6 +82,8 @@ export const medications: Medication[] = [
     refillThreshold: 5,
     refillsLeft: 3,
     prescriber: 'Dr. Nguyen',
+    pharmacyId: 'ph-bayside',
+    rxNumber: 'RX-2298105',
     notes: 'For pain. Do not exceed 3 doses in 24 hours.',
   },
   {
@@ -89,6 +99,8 @@ export const medications: Medication[] = [
     refillThreshold: 10,
     refillsLeft: 4,
     prescriber: 'Dr. Patel',
+    pharmacyId: 'ph-northgate',
+    rxNumber: 'RX-1042874',
     notes: 'Empty stomach, 30 min before food.',
   },
 ]
