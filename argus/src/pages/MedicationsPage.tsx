@@ -1,5 +1,8 @@
-import { medications } from '../data/medications'
+import { useState } from 'react'
+import { medications as DEMO_MEDS } from '../data/medications'
 import type { Medication } from '../types'
+import { setMeds, useVault } from '@/lib/useVault'
+import AddMedicationDialog from '@/components/AddMedicationDialog'
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Ongoing'
@@ -22,23 +25,77 @@ function formatTime(hhmm: string) {
 }
 
 function lowStock(med: Medication) {
-  return med.pillsRemaining <= med.refillThreshold
+  // Only flag low-stock when both numbers are configured. A fresh entry with
+  // pillsRemaining=0 and refillThreshold=0 isn't "low" — it's untracked.
+  return med.refillThreshold > 0 && med.pillsRemaining > 0 && med.pillsRemaining <= med.refillThreshold
 }
 
 export default function MedicationsPage() {
+  const { meds } = useVault()
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  if (meds.length === 0) {
+    return (
+      <div className="meds">
+        <header className="meds-header">
+          <div>
+            <h1 className="meds-title">medications</h1>
+            <p className="meds-subtitle">no prescriptions yet.</p>
+          </div>
+          <button
+            type="button"
+            className="meds-add-btn"
+            onClick={() => setDialogOpen(true)}
+          >
+            + add medication
+          </button>
+        </header>
+
+        <div className="meds-empty">
+          <p>your vault is empty. add your meds, or load demo data to explore.</p>
+          <div className="meds-empty-actions">
+            <button
+              type="button"
+              className="meds-empty-action"
+              onClick={() => setDialogOpen(true)}
+            >
+              add medication
+            </button>
+            <button
+              type="button"
+              className="meds-empty-action meds-empty-action-secondary"
+              onClick={() => void setMeds(DEMO_MEDS)}
+            >
+              load demo data
+            </button>
+          </div>
+        </div>
+
+        <AddMedicationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      </div>
+    )
+  }
+
   return (
     <div className="meds">
       <header className="meds-header">
         <div>
-          <h1 className="meds-title">Medications</h1>
+          <h1 className="meds-title">medications</h1>
           <p className="meds-subtitle">
-            {medications.length} active prescriptions tracked by Argus.
+            {meds.length} active prescription{meds.length === 1 ? '' : 's'} tracked by argus.
           </p>
         </div>
+        <button
+          type="button"
+          className="meds-add-btn"
+          onClick={() => setDialogOpen(true)}
+        >
+          + add medication
+        </button>
       </header>
 
       <div className="meds-grid">
-        {medications.map((med) => {
+        {meds.map((med) => {
           const low = lowStock(med)
           return (
             <article key={med.id} className={`med-card${low ? ' med-card-low' : ''}`}>
@@ -62,14 +119,18 @@ export default function MedicationsPage() {
                   <dt>Frequency</dt>
                   <dd>{med.frequency}</dd>
                 </div>
-                <div className="med-row">
-                  <dt>Stops</dt>
-                  <dd>{formatDate(med.stopAt)}</dd>
-                </div>
-                <div className="med-row">
-                  <dt>Prescriber</dt>
-                  <dd>{med.prescriber}</dd>
-                </div>
+                {med.stopAt && (
+                  <div className="med-row">
+                    <dt>Stops</dt>
+                    <dd>{formatDate(med.stopAt)}</dd>
+                  </div>
+                )}
+                {med.prescriber && (
+                  <div className="med-row">
+                    <dt>Prescriber</dt>
+                    <dd>{med.prescriber}</dd>
+                  </div>
+                )}
               </dl>
 
               <div className="med-times">
@@ -100,6 +161,8 @@ export default function MedicationsPage() {
           )
         })}
       </div>
+
+      <AddMedicationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>
   )
 }

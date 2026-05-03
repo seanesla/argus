@@ -655,3 +655,462 @@
     padding: 24px 16px 48px;
   }
 }
+
+/* =====================================================================
+   Vault unlock screen
+   ===================================================================== */
+.vault-screen {
+  position: relative;
+  z-index: 1;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.vault-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--code-bg);
+  box-shadow: var(--shadow);
+}
+
+.vault-title {
+  font-size: 22px;
+  margin: 0;
+  color: var(--text-h);
+  letter-spacing: -0.3px;
+}
+
+.vault-sub {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.vault-loading {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  text-align: center;
+}
+
+.vault-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  text-transform: lowercase;
+  letter-spacing: 0.4px;
+}
+
+.vault-input {
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.vault-input:focus {
+  border-color: var(--accent);
+}
+
+.vault-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vault-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.vault-submit {
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.vault-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vault-reset {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+  align-self: center;
+}
+
+.vault-reset:hover {
+  color: var(--text-h);
+}
+
+.meds-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.meds-empty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meds-empty-action {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.meds-empty-action:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.meds-empty-action-secondary {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+.meds-empty-action-secondary:hover {
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.meds-add-btn {
+  align-self: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.meds-add-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* =====================================================================
+   Add medication dialog
+   ===================================================================== */
+.med-dialog {
+  border: none;
+  padding: 0;
+  border-radius: 16px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  max-width: 560px;
+  width: calc(100vw - 32px);
+  max-height: calc(100svh - 32px);
+  box-shadow: var(--shadow);
+}
+
+/* Only apply the flex layout when the dialog is actually open —
+   otherwise it would override the browser's default `display: none`
+   for closed dialogs and the modal would stay visible after .close(). */
+.med-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.med-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.med-dialog-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.med-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 12px;
+  flex-shrink: 0;
+}
+
+.med-dialog-title {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.3px;
+  color: var(--text-h);
+}
+
+.med-dialog-close {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.med-dialog-close:hover {
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.med-dialog-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.med-dialog-tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+
+.med-dialog-tab:hover {
+  color: var(--text-h);
+}
+
+.med-dialog-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.med-dialog-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.med-dialog-warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  font-size: 13px;
+}
+
+.med-dialog-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.med-dialog-file input[type='file'] {
+  display: none;
+}
+
+.med-dialog-file:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.med-dialog-preview {
+  max-height: 220px;
+  width: auto;
+  align-self: flex-start;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
+.med-dialog-extract {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.med-dialog-extract:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.med-dialog-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.med-dialog-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  font-style: italic;
+}
+
+.med-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px;
+  border: none;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  text-transform: lowercase;
+  letter-spacing: 0.4px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 56px;
+}
+
+.med-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--code-bg);
+}
+
+.med-dialog-cancel {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.med-dialog-cancel:hover {
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.med-dialog-save {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.med-dialog-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

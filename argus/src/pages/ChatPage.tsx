@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { isGeminiConfigured, streamChat, type ChatTurn } from '@/lib/gemini'
+import { useVault } from '@/lib/useVault'
 
 interface Message {
   id: string
@@ -37,6 +38,7 @@ function formatTime(iso: string) {
 }
 
 export default function ChatPage() {
+  const { meds } = useVault()
   const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -95,7 +97,7 @@ export default function ChatPage() {
     setBusy(true)
     try {
       let acc = ''
-      for await (const chunk of streamChat(history, trimmed)) {
+      for await (const chunk of streamChat(history, trimmed, meds)) {
         acc += chunk
         setMessages((m) =>
           m.map((msg) =>
@@ -122,7 +124,7 @@ export default function ChatPage() {
     }
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     void send(draft)
   }
