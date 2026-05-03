@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai'
+import { GoogleGenAI, Type, type Content, type Part } from '@google/genai'
 import type { Medication } from '@/types'
 
 export interface ExtractedMedication {
@@ -11,6 +11,23 @@ export interface ExtractedMedication {
   prescriber?: string
   prescribedAt?: string
   notes?: string
+}
+
+export interface AddMedicationInput {
+  name: string
+  dosage: string
+  frequency: string
+  scheduledTimes?: string[]
+  pillsRemaining?: number
+  refillThreshold?: number
+  refillsLeft?: number
+  prescriber?: string
+  prescribedAt?: string
+  notes?: string
+}
+
+export interface ChatTools {
+  addMedication: (input: AddMedicationInput) => Promise<{ id: string; name: string }>
 }
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
@@ -35,18 +52,67 @@ function buildSystemInstruction(meds: Medication[]): string {
 
   return `You are Argus, a careful, calm medication copilot for the user.
 
-You have access to the user's current medication list:
+The user's current medication list:
 ${medLines}
 
 Today's date: ${new Date().toISOString().slice(0, 10)}.
+
+Tools you can use:
+- add_medication(name, dosage, frequency, ...): adds a medication to the user's list. Call this when the user describes a new prescription ("I just got prescribed X", "add Y", "I'm now on Z 10mg twice daily"). Do not just say you'll do it — actually call the tool.
 
 Style rules:
 - Keep replies short — usually 1 to 4 short sentences.
 - Lowercase, conversational, but precise. No medical disclaimers unless directly asked.
 - Use the medication list above as the source of truth. Don't invent meds, doses, or schedules.
 - When asked about counts ("how many X left"), give the exact number from the list.
+- When the user describes a new prescription, call add_medication. If a critical field is missing (name, dosage, or frequency), ask one short question to fill it in, then call.
+- After calling add_medication, briefly confirm what you added in plain text.
 - If asked something genuinely medical (interactions, dose changes, side effects), give the safe baseline answer in one line, then add: "for anything unusual, talk to your prescriber."
 - Never tell the user to stop or change a prescription on your own.`
+}
+
+const ADD_MEDICATION_DECLARATION = {
+  name: 'add_medication',
+  description:
+    'Add a new medication to the user’s vault. Use when the user describes a prescription they want tracked.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      name: { type: Type.STRING, description: 'Medication name, e.g. "Lisinopril"' },
+      dosage: { type: Type.STRING, description: 'Dose strength, e.g. "10 mg"' },
+      frequency: {
+        type: Type.STRING,
+        enum: [
+          'Once daily',
+          'Twice daily',
+          'Three times daily',
+          'Four times daily',
+          'Every other day',
+          'Weekly',
+          'As needed',
+        ],
+        description: 'How often the medication is taken',
+      },
+      scheduledTimes: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: '24h HH:MM times for scheduled doses, e.g. ["08:00", "20:00"]',
+      },
+      pillsRemaining: { type: Type.NUMBER, description: 'Pills currently in stock' },
+      refillThreshold: {
+        type: Type.NUMBER,
+        description: 'Pill count at which to draft a refill',
+      },
+      refillsLeft: {
+        type: Type.NUMBER,
+        description: 'Refills authorized at the pharmacy',
+      },
+      prescriber: { type: Type.STRING, description: 'Prescribing doctor' },
+      prescribedAt: { type: Type.STRING, description: 'Date prescribed YYYY-MM-DD' },
+      notes: { type: Type.STRING, description: 'Special instructions or warnings' },
+    },
+    required: ['name', 'dosage', 'frequency'],
+  },
 }
 
 export type ChatTurn = { role: 'user' | 'model'; text: string }
@@ -55,27 +121,82 @@ export async function* streamChat(
   history: ChatTurn[],
   userMessage: string,
   meds: Medication[],
-) {
+  tools: ChatTools,
+): AsyncGenerator<string> {
   if (!ai) {
     throw new Error(
       'Gemini is not configured. Add VITE_GEMINI_API_KEY to argus/.env.local and restart the dev server.',
     )
   }
 
-  const contents = [
+  const contents: Content[] = [
     ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-    { role: 'user' as const, parts: [{ text: userMessage }] },
+    { role: 'user', parts: [{ text: userMessage }] },
   ]
 
-  const stream = await ai.models.generateContentStream({
-    model: 'gemini-3-flash-preview',
-    contents,
-    config: { systemInstruction: buildSystemInstruction(meds) },
-  })
+  // Loop: stream a response, execute any tool calls, send their results back,
+  // continue until the model emits no more tool calls. Bounded to avoid runaway.
+  for (let turn = 0; turn < 4; turn++) {
+    const stream = await ai.models.generateContentStream({
+      model: 'gemini-3-flash-preview',
+      contents,
+      config: {
+        systemInstruction: buildSystemInstruction(meds),
+        tools: [{ functionDeclarations: [ADD_MEDICATION_DECLARATION] }],
+      },
+    })
 
-  for await (const chunk of stream) {
-    const text = chunk.text
-    if (text) yield text
+    const modelParts: Part[] = []
+    const calls: { name: string; args: Record<string, unknown> }[] = []
+
+    for await (const chunk of stream) {
+      const parts = chunk.candidates?.[0]?.content?.parts ?? []
+      for (const part of parts) {
+        // Push the part as-is so we preserve thoughtSignature on functionCall
+        // parts — Gemini rejects history that drops it for thinking-enabled models.
+        modelParts.push(part)
+        if (part.text) yield part.text
+        if (part.functionCall) {
+          calls.push({
+            name: part.functionCall.name ?? '',
+            args: (part.functionCall.args ?? {}) as Record<string, unknown>,
+          })
+        }
+      }
+    }
+
+    if (calls.length === 0) return
+
+    contents.push({ role: 'model', parts: modelParts })
+
+    const responseParts: Part[] = []
+    for (const call of calls) {
+      try {
+        if (call.name === 'add_medication') {
+          const input = call.args as unknown as AddMedicationInput
+          const result = await tools.addMedication(input)
+          yield `\n\n_added **${result.name}** to your medications._\n`
+          responseParts.push({
+            functionResponse: { name: call.name, response: { output: result } },
+          })
+        } else {
+          responseParts.push({
+            functionResponse: {
+              name: call.name,
+              response: { error: `unknown function: ${call.name}` },
+            },
+          })
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        yield `\n\n_failed to ${call.name}: ${message}_\n`
+        responseParts.push({
+          functionResponse: { name: call.name, response: { error: message } },
+        })
+      }
+    }
+
+    contents.push({ role: 'user', parts: responseParts })
   }
 }
 

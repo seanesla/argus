@@ -1,6 +1,60 @@
 import { useState, useRef, useEffect } from 'react'
-import { isGeminiConfigured, streamChat, type ChatTurn } from '@/lib/gemini'
-import { useVault } from '@/lib/useVault'
+import {
+  isGeminiConfigured,
+  streamChat,
+  type AddMedicationInput,
+  type ChatTools,
+  type ChatTurn,
+} from '@/lib/gemini'
+import { addMed, useVault } from '@/lib/useVault'
+import type { Frequency, Medication } from '@/types'
+
+const ALLOWED_FREQUENCIES: Frequency[] = [
+  'Once daily',
+  'Twice daily',
+  'Three times daily',
+  'Four times daily',
+  'Every other day',
+  'Weekly',
+  'As needed',
+]
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function inputToMedication(input: AddMedicationInput): Medication {
+  const matched = ALLOWED_FREQUENCIES.find(
+    (f) => f.toLowerCase() === input.frequency?.toLowerCase().trim(),
+  )
+  const prescribedAt = input.prescribedAt || todayISO()
+  return {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    dosage: input.dosage.trim(),
+    frequency: matched ?? 'Once daily',
+    scheduledTimes: input.scheduledTimes ?? [],
+    prescribedAt,
+    startAt: prescribedAt,
+    stopAt: null,
+    pillsRemaining: input.pillsRemaining ?? 0,
+    refillThreshold: input.refillThreshold ?? 0,
+    refillsLeft: input.refillsLeft ?? 0,
+    prescriber: input.prescriber?.trim() ?? '',
+    notes: input.notes?.trim() || undefined,
+  }
+}
+
+const CHAT_TOOLS: ChatTools = {
+  async addMedication(input) {
+    if (!input?.name?.trim()) throw new Error('name is required')
+    if (!input?.dosage?.trim()) throw new Error('dosage is required')
+    if (!input?.frequency?.trim()) throw new Error('frequency is required')
+    const med = inputToMedication(input)
+    await addMed(med)
+    return { id: med.id, name: med.name }
+  },
+}
 
 interface Message {
   id: string
@@ -97,7 +151,7 @@ export default function ChatPage() {
     setBusy(true)
     try {
       let acc = ''
-      for await (const chunk of streamChat(history, trimmed, meds)) {
+      for await (const chunk of streamChat(history, trimmed, meds, CHAT_TOOLS)) {
         acc += chunk
         setMessages((m) =>
           m.map((msg) =>
