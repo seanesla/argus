@@ -22,3 +22,25 @@ export interface Medication {
   prescriber: string
   notes?: string
 }
+
+export type Severity = 'mild' | 'moderate' | 'severe'
+
+export interface SymptomEntry {
+  id: string
+  occurredAt: string
+  loggedAt: string
+  symptom: string
+  severity: Severity
+  rawText: string
+}
+
+export interface Correlation {
+  symptom: string
+  medicationId: string
+  medicationName: string
+  windowMinutes: number
+  matchedDays: number
+  observedDays: number
+  scheduledTime: string
+  summary: string
+}
