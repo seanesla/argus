@@ -20,8 +20,8 @@ export interface Medication {
   refillThreshold: number
   refillsLeft: number
   prescriber: string
-  pharmacyId: string
-  rxNumber: string
+  pharmacyId?: string
+  rxNumber?: string
   notes?: string
 }
 

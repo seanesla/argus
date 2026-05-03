@@ -18,6 +18,7 @@ export function groupLowByPharmacy(): PharmacyGroup[] {
   const low = getLowMedications()
   const map = new Map<string, Medication[]>()
   for (const med of low) {
+    if (!med.pharmacyId) continue
     const list = map.get(med.pharmacyId) ?? []
     list.push(med)
     map.set(med.pharmacyId, list)

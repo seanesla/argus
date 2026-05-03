@@ -5,7 +5,7 @@ import { demoUserProfile } from '@/data/userProfile'
 
 export type Mode = 'demo' | 'real'
 
-const MODE_KEY = 'argus.mode'
+const STORAGE_KEY = 'argus.mode'
 const REAL_PHARMACIES_KEY = 'argus.real.pharmacies'
 const REAL_PROFILE_KEY = 'argus.real.userProfile'
 
@@ -13,10 +13,10 @@ export const MODE_EVENT = 'argus:mode-change'
 
 const listeners = new Set<() => void>()
 
-function emit(mode: Mode) {
+function emit(detail?: Mode) {
   for (const l of listeners) l()
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<Mode>(MODE_EVENT, { detail: mode }))
+    window.dispatchEvent(new CustomEvent<Mode | undefined>(MODE_EVENT, { detail }))
   }
 }
 
@@ -51,13 +51,13 @@ function isMode(value: unknown): value is Mode {
 
 export function getMode(): Mode {
   if (typeof localStorage === 'undefined') return 'demo'
-  const v = localStorage.getItem(MODE_KEY)
+  const v = localStorage.getItem(STORAGE_KEY)
   return isMode(v) ? v : 'demo'
 }
 
 export function setMode(mode: Mode) {
   try {
-    localStorage.setItem(MODE_KEY, mode)
+    localStorage.setItem(STORAGE_KEY, mode)
   } catch {
     // localStorage unavailable — silently no-op
   }
@@ -70,7 +70,7 @@ export function getRealPharmacies(): Pharmacy[] {
 
 export function setRealPharmacies(pharmacies: Pharmacy[]) {
   writeJson(REAL_PHARMACIES_KEY, pharmacies)
-  emit(getMode())
+  emit()
 }
 
 export function getRealUserProfile(): UserProfile | null {
@@ -79,7 +79,7 @@ export function getRealUserProfile(): UserProfile | null {
 
 export function setRealUserProfile(profile: UserProfile | null) {
   writeJson(REAL_PROFILE_KEY, profile)
-  emit(getMode())
+  emit()
 }
 
 export function getActivePharmacies(): Pharmacy[] {
