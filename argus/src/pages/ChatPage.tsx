@@ -1,29 +1,102 @@
-import { useState, useRef, useEffect } from 'react'
-import { isGeminiConfigured, streamChat, type ChatTurn } from '@/lib/gemini'
+import { useRef, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  isGeminiConfigured,
+  pickRelevantCorrelation,
+  streamChat,
+  type AddMedicationInput,
+  type ChatTools,
+  type ChatTurn,
+} from '@/lib/gemini'
+import { extractSymptoms } from '@/lib/symptomExtractor'
+import {
+  correlationKey,
+  findCorrelations,
+  useDismissed,
+  useSymptoms,
+  addSymptoms,
+} from '@/lib/symptoms'
+import { addMedication, useMedications } from '@/lib/medications'
+import { useConsent } from '@/lib/consent'
+import ConsentModal from '@/components/ConsentModal'
+import {
+  getActiveConversation,
+  startNewConversation,
+  updateActiveMessages,
+  useActiveConversation,
+  type ChatMessage,
+} from '@/lib/chats'
+import type { Frequency, Medication } from '@/types'
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  createdAt: string
-  pending?: boolean
-}
+const SEEN_CORRELATIONS_KEY = 'argus.seen-correlations.v1'
 
-const SEED_MESSAGES: Message[] = [
-  {
-    id: 'm1',
-    role: 'assistant',
-    content:
-      "Hi, I'm Argus. I keep an eye on your medications, log doses as you take them, and draft refill requests before you run out. What would you like to do?",
-    createdAt: new Date().toISOString(),
-  },
+const ALLOWED_FREQUENCIES: Frequency[] = [
+  'Once daily',
+  'Twice daily',
+  'Three times daily',
+  'Four times daily',
+  'Every other day',
+  'Weekly',
+  'As needed',
 ]
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function inputToMedication(input: AddMedicationInput): Medication {
+  const matched = ALLOWED_FREQUENCIES.find(
+    (f) => f.toLowerCase() === input.frequency?.toLowerCase().trim(),
+  )
+  const prescribedAt = input.prescribedAt || todayISO()
+  return {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    dosage: input.dosage.trim(),
+    frequency: matched ?? 'Once daily',
+    scheduledTimes: input.scheduledTimes ?? [],
+    prescribedAt,
+    startAt: prescribedAt,
+    stopAt: null,
+    pillsRemaining: input.pillsRemaining ?? 0,
+    refillThreshold: input.refillThreshold ?? 0,
+    refillsLeft: input.refillsLeft ?? 0,
+    prescriber: input.prescriber?.trim() ?? '',
+    notes: input.notes?.trim() || undefined,
+  }
+}
+
+const CHAT_TOOLS: ChatTools = {
+  async addMedication(input) {
+    if (!input?.name?.trim()) throw new Error('name is required')
+    if (!input?.dosage?.trim()) throw new Error('dosage is required')
+    if (!input?.frequency?.trim()) throw new Error('frequency is required')
+    const med = inputToMedication(input)
+    await addMedication(med)
+    return { id: med.id, name: med.name }
+  },
+}
+
+function loadSeen(): string[] {
+  try {
+    const raw = localStorage.getItem(SEEN_CORRELATIONS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSeen(keys: string[]): void {
+  localStorage.setItem(SEEN_CORRELATIONS_KEY, JSON.stringify(keys))
+}
+
 const SUGGESTIONS = [
-  'log my morning dose',
+  'felt dizzy this morning around 8',
   'how many lisinopril do i have left?',
+  'mild headache around 2pm',
   'draft a refill request for atorvastatin',
-  'what am i taking tonight?',
 ]
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -37,10 +110,40 @@ function formatTime(iso: string) {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
+  const conv = useActiveConversation()
+  const messages = conv.messages
+  const meds = useMedications()
+  const symptoms = useSymptoms()
+  const dismissed = useDismissed()
+  const consented = useConsent()
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const draftRef = useRef<HTMLInputElement>(null)
+  const busyRef = useRef(false)
+
+  const correlations = useMemo(
+    () => findCorrelations(symptoms, meds, dismissed),
+    [symptoms, meds, dismissed],
+  )
+  const recentSymptoms = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return symptoms.filter(
+      (s) => new Date(s.occurredAt).getTime() >= cutoff,
+    )
+  }, [symptoms])
+
+  const [seenKeys, setSeenKeys] = useState<string[]>(() => loadSeen())
+  const unseen = useMemo(
+    () => correlations.filter((c) => !seenKeys.includes(correlationKey(c))),
+    [correlations, seenKeys],
+  )
+
+  function dismissToast() {
+    const next = Array.from(
+      new Set([...seenKeys, ...correlations.map(correlationKey)]),
+    )
+    saveSeen(next)
+    setSeenKeys(next)
+  }
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({
@@ -49,18 +152,26 @@ export default function ChatPage() {
     })
   }, [messages])
 
+  function setMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
+    // Always read the freshest persisted messages so concurrent updates
+    // (streaming chunk + symptom extraction) don't clobber each other.
+    const current = getActiveConversation().messages
+    updateActiveMessages(updater(current))
+  }
+
   async function send(text: string) {
     const trimmed = text.trim()
-    if (!trimmed || busy) return
+    if (!trimmed || busyRef.current) return
     const now = new Date().toISOString()
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
+    const userMsgId = crypto.randomUUID()
+    const userMsg: ChatMessage = {
+      id: userMsgId,
       role: 'user',
       content: trimmed,
       createdAt: now,
     }
     const assistantId = crypto.randomUUID()
-    const assistantMsg: Message = {
+    const assistantMsg: ChatMessage = {
       id: assistantId,
       role: 'assistant',
       content: '',
@@ -68,8 +179,13 @@ export default function ChatPage() {
       pending: true,
     }
 
+    const baseHistory: ChatTurn[] = messages.map((m) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      text: m.content,
+    }))
+
     setMessages((m) => [...m, userMsg, assistantMsg])
-    setDraft('')
+    if (draftRef.current) draftRef.current.value = ''
 
     if (!isGeminiConfigured) {
       setMessages((m) =>
@@ -87,15 +203,30 @@ export default function ChatPage() {
       return
     }
 
-    const history: ChatTurn[] = messages.map((m) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      text: m.content,
-    }))
+    busyRef.current = true
 
-    setBusy(true)
+    void extractSymptoms(trimmed)
+      .then((extracted) => {
+        if (extracted.length === 0) return
+        addSymptoms(extracted)
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === userMsgId ? { ...msg, loggedSymptoms: extracted } : msg,
+          ),
+        )
+      })
+      .catch(() => {})
+
     try {
       let acc = ''
-      for await (const chunk of streamChat(history, trimmed)) {
+      const relevant = pickRelevantCorrelation(trimmed, correlations)
+      for await (const chunk of streamChat(baseHistory, trimmed, {
+        meds,
+        correlations,
+        recentSymptoms,
+        relevantSummary: relevant?.summary ?? null,
+        tools: CHAT_TOOLS,
+      })) {
         acc += chunk
         setMessages((m) =>
           m.map((msg) =>
@@ -118,21 +249,57 @@ export default function ChatPage() {
         ),
       )
     } finally {
-      setBusy(false)
+      busyRef.current = false
     }
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    void send(draft)
+    if (!draftRef.current) return
+    void send(draftRef.current.value)
+  }
+
+  function onNewChat() {
+    if (busyRef.current) return
+    startNewConversation()
+    if (draftRef.current) draftRef.current.value = ''
+  }
+
+  if (!consented) {
+    return <ConsentModal />
   }
 
   return (
     <div className="chat">
+      {unseen.length > 0 && (
+        <div className="pattern-toast">
+          <span>argus has noticed a possible pattern.</span>
+          <Link
+            to="/patterns"
+            className="pattern-toast-link"
+            onClick={dismissToast}
+          >
+            open patterns →
+          </Link>
+          <button
+            type="button"
+            className="pattern-toast-close"
+            aria-label="dismiss"
+            onClick={dismissToast}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <header className="chat-header">
-        <h1 className="chat-title">argus</h1>
+        <div className="chat-header-row">
+          <h1 className="chat-title">argus</h1>
+          <button type="button" className="chip" onClick={onNewChat}>
+            + new chat
+          </button>
+        </div>
         <p className="chat-subtitle">
-          Your medication copilot — ask me anything about your prescriptions.
+          your medication copilot — describe how you're feeling to log it, or ask about your meds.
         </p>
       </header>
 
@@ -153,6 +320,27 @@ export default function ChatPage() {
               <div className="log-body">
                 {m.content || (m.pending ? '…' : '')}
               </div>
+              {m.loggedSymptoms && m.loggedSymptoms.length > 0 && (
+                <div className="log-receipt">
+                  <div className="log-receipt-label">
+                    logged to patterns
+                  </div>
+                  <ul className="log-receipt-list">
+                    {m.loggedSymptoms.map((s) => (
+                      <li key={s.id} className="log-receipt-item">
+                        <span className={`severity-dot severity-${s.severity}`} />
+                        <span className="log-receipt-symptom">{s.symptom}</span>
+                        <span className="log-receipt-time">
+                          {formatTime(s.occurredAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/patterns" className="log-receipt-link">
+                    view in patterns →
+                  </Link>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -170,16 +358,11 @@ export default function ChatPage() {
         <input
           className="composer-input"
           placeholder="message argus…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          ref={draftRef}
           autoFocus
         />
-        <button
-          className="composer-send"
-          type="submit"
-          disabled={!draft.trim() || busy}
-        >
-          {busy ? 'sending' : 'send'}
+        <button className="composer-send" type="submit">
+          send
         </button>
       </form>
     </div>

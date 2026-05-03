@@ -71,6 +71,14 @@ export default function Layout() {
               <span className="nav-dot" />
               chat
             </NavLink>
+            <NavLink to="/history" className="nav-link">
+              <span className="nav-dot" />
+              history
+            </NavLink>
+            <NavLink to="/patterns" className="nav-link">
+              <span className="nav-dot" />
+              patterns
+            </NavLink>
             <NavLink to="/medications" className="nav-link">
               <span className="nav-dot" />
               medications
@@ -80,8 +88,8 @@ export default function Layout() {
           <DailyChecklist />
 
           <div className="sidebar-footer">
-            <AccentPicker />
             <ModeToggle />
+            <AccentPicker />
             <div className="status-pill">
               <span className="status-dot" />
               agent online

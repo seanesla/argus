@@ -1,26 +1,25 @@
-import { setMode, useMode } from '@/lib/mode'
+import { setMode, useMode, type Mode } from '@/lib/mode'
+
+const OPTIONS: Mode[] = ['demo', 'real']
 
 export default function ModeToggle() {
   const mode = useMode()
-
   return (
     <div className="mode-toggle">
-      <div className="mode-toggle-label">mode</div>
-      <div className="mode-toggle-buttons">
-        <button
-          type="button"
-          className={`mode-btn${mode === 'demo' ? ' active' : ''}`}
-          onClick={() => setMode('demo')}
-        >
-          demo
-        </button>
-        <button
-          type="button"
-          className={`mode-btn${mode === 'real' ? ' active' : ''}`}
-          onClick={() => setMode('real')}
-        >
-          real
-        </button>
+      <div className="mode-toggle-label">data</div>
+      <div className="mode-toggle-pill" role="radiogroup" aria-label="data mode">
+        {OPTIONS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={mode === m}
+            className={`mode-toggle-option${mode === m ? ' active' : ''}`}
+            onClick={() => setMode(m)}
+          >
+            {m}
+          </button>
+        ))}
       </div>
     </div>
   )

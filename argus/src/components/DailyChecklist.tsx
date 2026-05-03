@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { medications } from '../data/medications'
-import type { Medication } from '../types'
+import { useMedications } from '@/lib/medications'
+import type { Medication } from '@/types'
 
 const STORAGE_PREFIX = 'argus.checklist.'
 
@@ -31,10 +31,11 @@ type Checked = Record<string, boolean>
 export default function DailyChecklist() {
   const dayKey = todayKey()
   const storageKey = STORAGE_PREFIX + dayKey
+  const medications = useMedications()
 
   const activeMeds = useMemo(
     () => medications.filter((m) => isActiveToday(m, dayKey)),
-    [dayKey],
+    [medications, dayKey],
   )
 
   const [checked, setChecked] = useState<Checked>(() => {
@@ -59,11 +60,13 @@ export default function DailyChecklist() {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const totalDoses = activeMeds.reduce((n, m) => n + m.scheduledTimes.length, 0)
+  const totalDoses = activeMeds.reduce(
+    (n: number, m: Medication) => n + m.scheduledTimes.length,
+    0,
+  )
   const takenDoses = activeMeds.reduce(
-    (n, m) =>
-      n +
-      m.scheduledTimes.filter((t) => checked[`${m.id}@${t}`]).length,
+    (n: number, m: Medication) =>
+      n + m.scheduledTimes.filter((t: string) => checked[`${m.id}@${t}`]).length,
     0,
   )
 
@@ -80,14 +83,14 @@ export default function DailyChecklist() {
         <div className="checklist-empty">no scheduled doses</div>
       ) : (
         <ul className="checklist-list">
-          {activeMeds.map((med) => (
+          {activeMeds.map((med: Medication) => (
             <li key={med.id} className="checklist-item">
               <div className="checklist-name">
                 <span className="checklist-med">{med.name}</span>
                 <span className="checklist-dose">{med.dosage}</span>
               </div>
               <div className="checklist-boxes">
-                {med.scheduledTimes.map((t) => {
+                {med.scheduledTimes.map((t: string) => {
                   const key = `${med.id}@${t}`
                   const isOn = !!checked[key]
                   return (
