@@ -1,24 +1,27 @@
 import { useEffect, useState } from 'react'
 import { medications as DEMO_MEDICATIONS } from '@/data/medications'
-import { getMode, MODE_EVENT } from './mode'
+import { getMode, MODE_EVENT, useMode } from './mode'
+import {
+  addMed,
+  getMedsSnapshot,
+  removeMed,
+  updateMed,
+  useVault,
+} from './useVault'
 import type { Medication } from '@/types'
 
+// In demo mode meds live in plaintext localStorage (so the demo experience
+// works without setting up a vault). In real mode they live in the encrypted
+// vault and are accessed through the useVault store.
+
+const DEMO_KEY = 'argus.demo.medications'
 const MEDS_EVENT = 'argus:meds-change'
 
-function storageKey(): string {
-  return getMode() === 'demo' ? 'argus.demo.medications' : 'argus.real.medications'
-}
-
-export function loadMedications(): Medication[] {
-  const k = storageKey()
-  const raw = localStorage.getItem(k)
+function loadDemo(): Medication[] {
+  const raw = localStorage.getItem(DEMO_KEY)
   if (raw === null) {
-    // Demo namespace seeds itself on first read; real namespace stays empty.
-    if (getMode() === 'demo') {
-      saveMedications(DEMO_MEDICATIONS)
-      return DEMO_MEDICATIONS
-    }
-    return []
+    saveDemo(DEMO_MEDICATIONS)
+    return DEMO_MEDICATIONS
   }
   try {
     const parsed = JSON.parse(raw)
@@ -28,41 +31,80 @@ export function loadMedications(): Medication[] {
   }
 }
 
-export function saveMedications(meds: Medication[]): void {
-  localStorage.setItem(storageKey(), JSON.stringify(meds))
+function saveDemo(meds: Medication[]): void {
+  localStorage.setItem(DEMO_KEY, JSON.stringify(meds))
   window.dispatchEvent(new Event(MEDS_EVENT))
 }
 
-export function addMedication(m: Medication): Medication[] {
-  const next = [...loadMedications(), m]
-  saveMedications(next)
-  return next
+export function loadMedications(): Medication[] {
+  if (getMode() === 'real') return getMedsSnapshot()
+  return loadDemo()
 }
 
-export function updateMedication(id: string, patch: Partial<Medication>): Medication[] {
-  const next = loadMedications().map((m) => (m.id === id ? { ...m, ...patch } : m))
-  saveMedications(next)
-  return next
+export function saveMedications(meds: Medication[]): void {
+  // Real mode persists through the vault; callers that want to bulk-set in
+  // real mode should go through useVault's setMeds. Demo mode is a plain
+  // overwrite.
+  if (getMode() === 'real') return
+  saveDemo(meds)
 }
 
-export function markDoseTaken(id: string): Medication[] {
-  const next = loadMedications().map((m) =>
-    m.id === id ? { ...m, pillsRemaining: Math.max(0, m.pillsRemaining - 1) } : m,
+export async function addMedication(m: Medication): Promise<void> {
+  if (getMode() === 'real') {
+    await addMed(m)
+    return
+  }
+  saveDemo([...loadDemo(), m])
+}
+
+export async function updateMedication(
+  id: string,
+  patch: Partial<Medication>,
+): Promise<void> {
+  if (getMode() === 'real') {
+    const cur = getMedsSnapshot().find((m) => m.id === id)
+    if (!cur) return
+    await updateMed({ ...cur, ...patch })
+    return
+  }
+  saveDemo(loadDemo().map((m) => (m.id === id ? { ...m, ...patch } : m)))
+}
+
+export async function markDoseTaken(id: string): Promise<void> {
+  if (getMode() === 'real') {
+    const cur = getMedsSnapshot().find((m) => m.id === id)
+    if (!cur) return
+    await updateMed({
+      ...cur,
+      pillsRemaining: Math.max(0, cur.pillsRemaining - 1),
+    })
+    return
+  }
+  saveDemo(
+    loadDemo().map((m) =>
+      m.id === id
+        ? { ...m, pillsRemaining: Math.max(0, m.pillsRemaining - 1) }
+        : m,
+    ),
   )
-  saveMedications(next)
-  return next
 }
 
-export function removeMedication(id: string): Medication[] {
-  const next = loadMedications().filter((m) => m.id !== id)
-  saveMedications(next)
-  return next
+export async function removeMedication(id: string): Promise<void> {
+  if (getMode() === 'real') {
+    await removeMed(id)
+    return
+  }
+  saveDemo(loadDemo().filter((m) => m.id !== id))
 }
 
 export function useMedications(): Medication[] {
-  const [meds, setMeds] = useState<Medication[]>(() => loadMedications())
+  const mode = useMode()
+  const vaultState = useVault()
+  const [demoMeds, setDemoMeds] = useState<Medication[]>(() =>
+    getMode() === 'demo' ? loadDemo() : [],
+  )
   useEffect(() => {
-    const refresh = () => setMeds(loadMedications())
+    const refresh = () => setDemoMeds(getMode() === 'demo' ? loadDemo() : [])
     window.addEventListener(MEDS_EVENT, refresh)
     window.addEventListener(MODE_EVENT, refresh)
     return () => {
@@ -70,5 +112,5 @@ export function useMedications(): Medication[] {
       window.removeEventListener(MODE_EVENT, refresh)
     }
   }, [])
-  return meds
+  return mode === 'real' ? vaultState.meds : demoMeds
 }
