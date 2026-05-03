@@ -68,6 +68,10 @@ export default function Layout() {
               <span className="nav-dot" />
               chat
             </NavLink>
+            <NavLink to="/patterns" className="nav-link">
+              <span className="nav-dot" />
+              patterns
+            </NavLink>
             <NavLink to="/medications" className="nav-link">
               <span className="nav-dot" />
               medications
