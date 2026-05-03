@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
+import { isGeminiConfigured, streamChat, type ChatTurn } from '@/lib/gemini'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   createdAt: string
+  pending?: boolean
 }
 
 const SEED_MESSAGES: Message[] = [
@@ -37,6 +39,7 @@ function formatTime(iso: string) {
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES)
   const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
   const scrollerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -46,9 +49,9 @@ export default function ChatPage() {
     })
   }, [messages])
 
-  function send(text: string) {
+  async function send(text: string) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || busy) return
     const now = new Date().toISOString()
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -56,20 +59,72 @@ export default function ChatPage() {
       content: trimmed,
       createdAt: now,
     }
-    const placeholder: Message = {
-      id: crypto.randomUUID(),
+    const assistantId = crypto.randomUUID()
+    const assistantMsg: Message = {
+      id: assistantId,
       role: 'assistant',
-      content:
-        "I haven't been wired up to the model yet — once the agent loop is connected I'll handle this.",
+      content: '',
       createdAt: now,
+      pending: true,
     }
-    setMessages((m) => [...m, userMsg, placeholder])
+
+    setMessages((m) => [...m, userMsg, assistantMsg])
     setDraft('')
+
+    if (!isGeminiConfigured) {
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content:
+                  "i'm not wired to a model yet — add VITE_GEMINI_API_KEY to argus/.env.local and restart the dev server.",
+                pending: false,
+              }
+            : msg,
+        ),
+      )
+      return
+    }
+
+    const history: ChatTurn[] = messages.map((m) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      text: m.content,
+    }))
+
+    setBusy(true)
+    try {
+      let acc = ''
+      for await (const chunk of streamChat(history, trimmed)) {
+        acc += chunk
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId ? { ...msg, content: acc } : msg,
+          ),
+        )
+      }
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId ? { ...msg, pending: false } : msg,
+        ),
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId
+            ? { ...msg, content: `error: ${message}`, pending: false }
+            : msg,
+        ),
+      )
+    } finally {
+      setBusy(false)
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    send(draft)
+    void send(draft)
   }
 
   return (
@@ -95,7 +150,9 @@ export default function ChatPage() {
                   {m.role === 'user' ? 'you' : 'argus'}
                 </span>
               </div>
-              <div className="log-body">{m.content}</div>
+              <div className="log-body">
+                {m.content || (m.pending ? '…' : '')}
+              </div>
             </div>
           ))}
         </div>
@@ -117,8 +174,12 @@ export default function ChatPage() {
           onChange={(e) => setDraft(e.target.value)}
           autoFocus
         />
-        <button className="composer-send" type="submit" disabled={!draft.trim()}>
-          send
+        <button
+          className="composer-send"
+          type="submit"
+          disabled={!draft.trim() || busy}
+        >
+          {busy ? 'sending' : 'send'}
         </button>
       </form>
     </div>
