@@ -28,24 +28,19 @@ argus:
 the actual app lives in `argus/argus/` (nested). top-level `argus/` is the git root.
 
 ```
-argus/argus/
-├── src/
-│   ├── pages/              # ChatPage, MedicationsPage
-│   ├── components/         # Layout, FaultyTerminal, AccentPicker,
-│   │   │                   # ConsentModal, UnlockGate, ModeToggle,
-│   │   │                   # MedicationForm, AddMedicationDialog,
-│   │   │                   # DailyChecklist, RefillBanner, RefillDraftModal
-│   │   └── charts/         # SupplyCard, CorrelationChart,
-│   │                       # SymptomTimeline, TodaySchedule, ChartAttachment
-│   ├── agents/refill/      # refill agent: client, prompt, schema, tools
-│   ├── lib/                # gemini, chats, chatTools, mode, refillScan,
-│   │                       # slashCommands, accent
-│   ├── data/               # medications, pharmacies, userProfile (mock/seed)
-│   └── types.ts
-├── public/                 # icons.svg, favicon.svg
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
+argus/argus/src/
+├── pages/         # ChatPage, MedicationsPage
+├── components/    # Layout, FaultyTerminal, AccentPicker, ConsentModal,
+│   │             # UnlockGate, ModeToggle, MedicationForm,
+│   │             # AddMedicationDialog, DailyChecklist, RefillBanner,
+│   │             # RefillDraftModal
+│   └── charts/    # SupplyCard, CorrelationChart, SymptomTimeline,
+│                  # TodaySchedule, ChartAttachment
+├── agents/refill/ # refill agent: client, prompt, schema, tools
+├── lib/           # gemini, chats, chatTools, mode, refillScan,
+│                  # slashCommands, accent
+├── data/          # medications, pharmacies, userProfile (mock/seed)
+└── types.ts
 ```
 
 ## getting started
