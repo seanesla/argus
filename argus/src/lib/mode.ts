@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import type { Pharmacy, UserProfile } from '@/types'
 import { demoPharmacies } from '@/data/pharmacies'
 import { demoUserProfile } from '@/data/userProfile'
@@ -8,10 +8,23 @@ export type Mode = 'demo' | 'real'
 const STORAGE_KEY = 'argus.mode'
 const REAL_PHARMACIES_KEY = 'argus.real.pharmacies'
 const REAL_PROFILE_KEY = 'argus.real.userProfile'
-const EVENT_NAME = 'argus:mode-change'
 
-function isMode(value: unknown): value is Mode {
-  return value === 'demo' || value === 'real'
+export const MODE_EVENT = 'argus:mode-change'
+
+const listeners = new Set<() => void>()
+
+function emit(detail?: Mode) {
+  for (const l of listeners) l()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<Mode | undefined>(MODE_EVENT, { detail }))
+  }
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb)
+  return () => {
+    listeners.delete(cb)
+  }
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -32,19 +45,23 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
-function emitChange(detail?: Mode) {
-  window.dispatchEvent(new CustomEvent<Mode | undefined>(EVENT_NAME, { detail }))
+function isMode(value: unknown): value is Mode {
+  return value === 'demo' || value === 'real'
 }
 
 export function getMode(): Mode {
-  if (typeof window === 'undefined') return 'demo'
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return isMode(stored) ? stored : 'demo'
+  if (typeof localStorage === 'undefined') return 'demo'
+  const v = localStorage.getItem(STORAGE_KEY)
+  return isMode(v) ? v : 'demo'
 }
 
-export function setMode(m: Mode): void {
-  localStorage.setItem(STORAGE_KEY, m)
-  emitChange(m)
+export function setMode(mode: Mode) {
+  try {
+    localStorage.setItem(STORAGE_KEY, mode)
+  } catch {
+    // localStorage unavailable — silently no-op
+  }
+  emit(mode)
 }
 
 export function getRealPharmacies(): Pharmacy[] {
@@ -53,7 +70,7 @@ export function getRealPharmacies(): Pharmacy[] {
 
 export function setRealPharmacies(pharmacies: Pharmacy[]) {
   writeJson(REAL_PHARMACIES_KEY, pharmacies)
-  emitChange()
+  emit()
 }
 
 export function getRealUserProfile(): UserProfile | null {
@@ -62,7 +79,7 @@ export function getRealUserProfile(): UserProfile | null {
 
 export function setRealUserProfile(profile: UserProfile | null) {
   writeJson(REAL_PROFILE_KEY, profile)
-  emitChange()
+  emit()
 }
 
 export function getActivePharmacies(): Pharmacy[] {
@@ -78,17 +95,5 @@ export function getActivePharmacy(id: string): Pharmacy | null {
 }
 
 export function useMode(): Mode {
-  const [mode, setModeState] = useState<Mode>(() => getMode())
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<Mode | undefined>).detail
-      if (isMode(detail)) setModeState(detail)
-      else setModeState(getMode())
-    }
-    window.addEventListener(EVENT_NAME, handler)
-    return () => window.removeEventListener(EVENT_NAME, handler)
-  }, [])
-  return mode
+  return useSyncExternalStore(subscribe, getMode, () => 'demo')
 }
-
-export const MODE_EVENT = EVENT_NAME

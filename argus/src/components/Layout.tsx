@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import AccentPicker from './AccentPicker'
-import ModeToggle from './ModeToggle'
+import DailyChecklist from './DailyChecklist'
 import FaultyTerminal from './FaultyTerminal'
+import ModeToggle from './ModeToggle'
 import RefillBanner from './RefillBanner'
 import { ACCENT_HEX, useAccent } from '@/lib/accent'
 
@@ -83,6 +84,8 @@ export default function Layout() {
               medications
             </NavLink>
           </nav>
+
+          <DailyChecklist />
 
           <div className="sidebar-footer">
             <ModeToggle />
