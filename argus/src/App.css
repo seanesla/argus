@@ -3,12 +3,44 @@
    Doctor's nighttime monitoring station. Sharp, instrument-grade.
    ===================================================================== */
 
+/* Background WebGL terminal layer */
+.bg-terminal {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-terminal > .faulty-terminal-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* Subtle gradient veil to keep text legible */
+.bg-terminal-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, transparent 0%, rgba(11, 13, 16, 0.55) 60%, rgba(11, 13, 16, 0.85) 100%),
+    linear-gradient(180deg, rgba(11, 13, 16, 0.35) 0%, rgba(11, 13, 16, 0.7) 100%);
+  pointer-events: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 220px 1fr;
   min-height: 100svh;
   width: 100%;
-  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+
+/* Make sidebar surface translucent so terminal shows through subtly */
+.app-shell .sidebar {
+  background: rgba(11, 13, 16, 0.78);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 /* ---------------- Sidebar ---------------- */

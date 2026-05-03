@@ -1,28 +1,12 @@
-import { useEffect, useState } from 'react'
-
-const ACCENTS = ['brass', 'iris', 'monitor', 'sakura', 'lichen', 'ember'] as const
-type Accent = (typeof ACCENTS)[number]
-
-const STORAGE_KEY = 'argus.accent'
-
-function applyAccent(a: Accent) {
-  const root = document.documentElement
-  ACCENTS.forEach((x) => root.classList.remove(`accent-${x}`))
-  root.classList.add(`accent-${a}`)
-}
-
-function readStoredAccent(): Accent {
-  if (typeof window === 'undefined') return 'brass'
-  const stored = localStorage.getItem(STORAGE_KEY) as Accent | null
-  return stored && (ACCENTS as readonly string[]).includes(stored) ? stored : 'brass'
-}
+import { useEffect } from 'react'
+import { ACCENTS, applyAccentClass, setAccent, useAccent } from '@/lib/accent'
 
 export default function AccentPicker() {
-  const [accent, setAccent] = useState<Accent>(() => readStoredAccent())
+  const accent = useAccent()
 
+  // Apply class on first mount in case nothing else has yet
   useEffect(() => {
-    applyAccent(accent)
-    localStorage.setItem(STORAGE_KEY, accent)
+    applyAccentClass(accent)
   }, [accent])
 
   return (

@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import AccentPicker from './AccentPicker'
+import FaultyTerminal from './FaultyTerminal'
+import { ACCENT_HEX, useAccent } from '@/lib/accent'
 
 function EyeMark() {
   return (
@@ -22,42 +24,69 @@ function EyeMark() {
 }
 
 export default function Layout() {
+  const accent = useAccent()
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <EyeMark />
-          </div>
-          <div className="brand-text">
-            <div className="brand-name">a r g u s</div>
-            <div className="brand-sub">medication copilot</div>
-          </div>
-        </div>
+    <>
+      {/* Background WebGL terminal — sits behind everything, tinted to current accent */}
+      <div className="bg-terminal" aria-hidden="true">
+        <FaultyTerminal
+          scale={1.6}
+          gridMul={[2, 1]}
+          digitSize={1.2}
+          timeScale={0.4}
+          scanlineIntensity={0.5}
+          glitchAmount={0.6}
+          flickerAmount={0.35}
+          noiseAmp={0.6}
+          chromaticAberration={0}
+          dither={0}
+          curvature={0.08}
+          tint={ACCENT_HEX[accent]}
+          mouseReact
+          mouseStrength={0.15}
+          pageLoadAnimation
+          brightness={0.22}
+        />
+        <div className="bg-terminal-veil" />
+      </div>
 
-        <nav className="nav">
-          <NavLink to="/" end className="nav-link">
-            <span className="nav-dot" />
-            chat
-          </NavLink>
-          <NavLink to="/medications" className="nav-link">
-            <span className="nav-dot" />
-            medications
-          </NavLink>
-        </nav>
-
-        <div className="sidebar-footer">
-          <AccentPicker />
-          <div className="status-pill">
-            <span className="status-dot" />
-            agent online
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">
+              <EyeMark />
+            </div>
+            <div className="brand-text">
+              <div className="brand-name">a r g u s</div>
+              <div className="brand-sub">medication copilot</div>
+            </div>
           </div>
-        </div>
-      </aside>
 
-      <main className="main">
-        <Outlet />
-      </main>
-    </div>
+          <nav className="nav">
+            <NavLink to="/" end className="nav-link">
+              <span className="nav-dot" />
+              chat
+            </NavLink>
+            <NavLink to="/medications" className="nav-link">
+              <span className="nav-dot" />
+              medications
+            </NavLink>
+          </nav>
+
+          <div className="sidebar-footer">
+            <AccentPicker />
+            <div className="status-pill">
+              <span className="status-dot" />
+              agent online
+            </div>
+          </div>
+        </aside>
+
+        <main className="main">
+          <Outlet />
+        </main>
+      </div>
+    </>
   )
 }
