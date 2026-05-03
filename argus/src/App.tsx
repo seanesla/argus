@@ -5,7 +5,7 @@ import MedicationsPage from './pages/MedicationsPage'
 import PatternsPage from './pages/PatternsPage'
 import './App.css'
 
-export default function App() {
+function App() {
   return (
     <BrowserRouter>
       <Routes>
@@ -18,3 +18,5 @@ export default function App() {
     </BrowserRouter>
   )
 }
+
+export default App
