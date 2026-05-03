@@ -20,8 +20,8 @@ export interface Medication {
   refillThreshold: number
   refillsLeft: number
   prescriber: string
-  pharmacyId: string
-  rxNumber: string
+  pharmacyId?: string
+  rxNumber?: string
   notes?: string
 }
 
@@ -38,4 +38,42 @@ export interface UserProfile {
   dateOfBirth: string
   contactEmail: string
   phone: string | null
+}
+
+export type Severity = 'mild' | 'moderate' | 'severe'
+
+export interface SymptomEntry {
+  id: string
+  occurredAt: string
+  loggedAt: string
+  symptom: string
+  severity: Severity
+  rawText: string
+}
+
+export type Confidence = 'suggestive' | 'consistent' | 'strong'
+
+export interface Correlation {
+  symptom: string
+  medicationId: string
+  medicationName: string
+  windowMinutes: number
+  matchedDays: number
+  observedDays: number
+  scheduledTime: string
+  summary: string
+  confidence: Confidence
+  wilsonLower: number
+  lift: number
+  pOverall: number
+  outOfWindowSymptomDays: number
+  lookbackDaysCovered: number
+}
+
+export interface DismissedCorrelation {
+  symptom: string
+  medicationId: string
+  scheduledTime: string
+  until: string
+  baselineMatchRate: number
 }

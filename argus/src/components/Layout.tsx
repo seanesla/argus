@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import AccentPicker from './AccentPicker'
-import FaultyTerminal from './FaultyTerminal'
 import ModeToggle from './ModeToggle'
+import FaultyTerminal from './FaultyTerminal'
 import RefillBanner from './RefillBanner'
 import { ACCENT_HEX, useAccent } from '@/lib/accent'
 
@@ -70,6 +70,14 @@ export default function Layout() {
               <span className="nav-dot" />
               chat
             </NavLink>
+            <NavLink to="/history" className="nav-link">
+              <span className="nav-dot" />
+              history
+            </NavLink>
+            <NavLink to="/patterns" className="nav-link">
+              <span className="nav-dot" />
+              patterns
+            </NavLink>
             <NavLink to="/medications" className="nav-link">
               <span className="nav-dot" />
               medications
@@ -77,8 +85,8 @@ export default function Layout() {
           </nav>
 
           <div className="sidebar-footer">
-            <AccentPicker />
             <ModeToggle />
+            <AccentPicker />
             <div className="status-pill">
               <span className="status-dot" />
               agent online

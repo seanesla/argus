@@ -1,5 +1,15 @@
-import { medications } from '../data/medications'
-import type { Medication } from '../types'
+import { useState } from 'react'
+import {
+  addMedication,
+  markDoseTaken,
+  removeMedication,
+  updateMedication,
+  useMedications,
+} from '@/lib/medications'
+import { setMode, useMode } from '@/lib/mode'
+import MedicationForm from '@/components/MedicationForm'
+import AddMedicationDialog from '@/components/AddMedicationDialog'
+import type { Medication } from '@/types'
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Ongoing'
@@ -22,23 +32,107 @@ function formatTime(hhmm: string) {
 }
 
 function lowStock(med: Medication) {
-  return med.pillsRemaining <= med.refillThreshold
+  // Only flag low-stock when both numbers are configured. A fresh entry with
+  // pillsRemaining=0 and refillThreshold=0 isn't "low" — it's untracked.
+  return (
+    med.refillThreshold > 0 &&
+    med.pillsRemaining > 0 &&
+    med.pillsRemaining <= med.refillThreshold
+  )
 }
 
 export default function MedicationsPage() {
+  const meds = useMedications()
+  const mode = useMode()
+  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [photoOpen, setPhotoOpen] = useState(false)
+
+  function onAdd(m: Medication) {
+    void addMedication(m)
+    setAdding(false)
+  }
+
+  function onUpdate(m: Medication) {
+    void updateMedication(m.id, m)
+    setEditingId(null)
+  }
+
+  function onDelete(id: string, name: string) {
+    if (!confirm(`remove ${name}?`)) return
+    void removeMedication(id)
+  }
+
   return (
     <div className="meds">
       <header className="meds-header">
         <div>
           <h1 className="meds-title">Medications</h1>
           <p className="meds-subtitle">
-            {medications.length} active prescriptions tracked by Argus.
+            {meds.length === 0
+              ? 'no medications yet.'
+              : `${meds.length} active prescription${meds.length === 1 ? '' : 's'} tracked by Argus.`}
           </p>
         </div>
+        {!adding && (
+          <div className="meds-header-actions">
+            <button
+              type="button"
+              className="chip"
+              onClick={() => setPhotoOpen(true)}
+            >
+              + from photo
+            </button>
+            <button
+              type="button"
+              className="composer-send"
+              onClick={() => setAdding(true)}
+            >
+              + add medication
+            </button>
+          </div>
+        )}
       </header>
 
+      {adding && (
+        <MedicationForm onSave={onAdd} onCancel={() => setAdding(false)} />
+      )}
+
+      {meds.length === 0 && !adding && (
+        <div className="meds-empty">
+          <p>no medications on file.</p>
+          <p className="meds-empty-hint">
+            {mode === 'real' ? (
+              <>
+                add your first medication above, or{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setMode('demo')}
+                >
+                  switch to demo mode
+                </button>{' '}
+                to see an example.
+              </>
+            ) : (
+              <>add your first medication above.</>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="meds-grid">
-        {medications.map((med) => {
+        {meds.map((med) => {
+          if (editingId === med.id) {
+            return (
+              <MedicationForm
+                key={med.id}
+                initial={med}
+                onSave={onUpdate}
+                onCancel={() => setEditingId(null)}
+              />
+            )
+          }
           const low = lowStock(med)
           return (
             <article key={med.id} className={`med-card${low ? ' med-card-low' : ''}`}>
@@ -62,14 +156,18 @@ export default function MedicationsPage() {
                   <dt>Frequency</dt>
                   <dd>{med.frequency}</dd>
                 </div>
-                <div className="med-row">
-                  <dt>Stops</dt>
-                  <dd>{formatDate(med.stopAt)}</dd>
-                </div>
-                <div className="med-row">
-                  <dt>Prescriber</dt>
-                  <dd>{med.prescriber}</dd>
-                </div>
+                {med.stopAt && (
+                  <div className="med-row">
+                    <dt>Stops</dt>
+                    <dd>{formatDate(med.stopAt)}</dd>
+                  </div>
+                )}
+                {med.prescriber && (
+                  <div className="med-row">
+                    <dt>Prescriber</dt>
+                    <dd>{med.prescriber}</dd>
+                  </div>
+                )}
               </dl>
 
               <div className="med-times">
@@ -96,10 +194,37 @@ export default function MedicationsPage() {
                     : 'no refills left, doctor approval needed.'}
                 </div>
               )}
+
+              <div className="med-card-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => void markDoseTaken(med.id)}
+                  disabled={med.pillsRemaining <= 0}
+                >
+                  mark as taken
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setEditingId(med.id)}
+                >
+                  edit
+                </button>
+                <button
+                  type="button"
+                  className="chip med-card-delete"
+                  onClick={() => onDelete(med.id, med.name)}
+                >
+                  delete
+                </button>
+              </div>
             </article>
           )
         })}
       </div>
+
+      <AddMedicationDialog open={photoOpen} onClose={() => setPhotoOpen(false)} />
     </div>
   )
 }
