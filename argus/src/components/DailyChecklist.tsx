@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMedications } from '@/lib/medications'
+import { updateMedication, useMedications } from '@/lib/medications'
 import type { Medication } from '@/types'
 
 const STORAGE_PREFIX = 'argus.checklist.'
@@ -56,8 +56,15 @@ export default function DailyChecklist() {
     }
   }, [checked, storageKey])
 
-  function toggle(id: string) {
-    setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
+  function toggle(key: string, med: Medication) {
+    const wasOn = !!checked[key]
+    const willBeOn = !wasOn
+    setChecked((prev) => ({ ...prev, [key]: willBeOn }))
+    const delta = willBeOn ? -1 : 1
+    const next = Math.max(0, med.pillsRemaining + delta)
+    if (next !== med.pillsRemaining) {
+      void updateMedication(med.id, { pillsRemaining: next })
+    }
   }
 
   const totalDoses = activeMeds.reduce(
@@ -102,7 +109,7 @@ export default function DailyChecklist() {
                       <input
                         type="checkbox"
                         checked={isOn}
-                        onChange={() => toggle(key)}
+                        onChange={() => toggle(key, med)}
                       />
                       <span className="checklist-time">{formatTime(t)}</span>
                     </label>
