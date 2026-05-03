@@ -1,5 +1,13 @@
 import { GoogleGenAI, Type, type Content, type Part } from '@google/genai'
 import type { Correlation, Medication, SymptomEntry } from '@/types'
+import {
+  buildCorrelationsAttachment,
+  buildScheduleAttachment,
+  buildSupplyAttachment,
+  buildSymptomsAttachment,
+  CHAT_TOOL_DECLARATIONS,
+  type ChartAttachment,
+} from './chatTools'
 
 export interface ExtractedMedication {
   name?: string
@@ -79,7 +87,13 @@ About the <argus_context> block (when present in the conversation):
 - The <correlations> list is the COMPLETE set of patterns Argus has detected. Never infer, generalize, or invent additional correlations from the symptom log. If the user asks about a pattern that is not in the list, say you haven't noticed one.
 - Argus reports CO-OCCURRENCE, not cause. Use words like "co-occurred", "showed up near", "happened around the same time as". Never use "caused", "triggered", "because of", "reaction to". Always say "doctor", not "prescriber".
 
-Tools:
+Visualization tools (very important):
+- You have four tools: show_supply, show_symptoms, show_schedule, show_correlations.
+- When the user asks to *see*, *show*, *chart*, *graph*, or otherwise visualize data — or asks a question whose answer is best given as data they can scan (e.g. "how are my refills?", "what's on for today?", "how many headaches this week?", "what patterns have you found?") — CALL the appropriate tool instead of describing the data in words.
+- When you call a tool, also write at most one short sentence as a lead-in (e.g. "here's where you stand:"). Don't describe what the chart shows after — the chart speaks for itself.
+- Don't call tools when the user is logging a symptom, asking a medical question, or just chatting.
+
+Add-medication tool:
 - add_medication(name, dosage, frequency, ...): adds a medication to the user's list. Call this when the user describes a new prescription ("I just got prescribed X", "add Y", "I'm now on Z 10mg twice daily"). If a critical field is missing (name, dosage, or frequency), ask one short question to fill it in, then call. After calling, briefly confirm what you added in plain text. Do not just say you'll do it — actually call the tool.
 
 Style rules:
@@ -181,19 +195,55 @@ function buildContextTurn(
 
 export type ChatTurn = { role: 'user' | 'model'; text: string }
 
+export type StreamYield =
+  | { type: 'text'; text: string }
+  | { type: 'attachment'; payload: ChartAttachment }
+
 export interface StreamChatOptions {
   meds: Medication[]
   correlations: Correlation[]
   recentSymptoms: SymptomEntry[]
+  symptoms: SymptomEntry[]
   relevantSummary: string | null
   tools: ChatTools
+}
+
+function runChartTool(
+  name: string,
+  args: Record<string, unknown> | undefined,
+  meds: Medication[],
+  correlations: Correlation[],
+  symptoms: SymptomEntry[],
+): ChartAttachment | null {
+  const a = args ?? {}
+  switch (name) {
+    case 'show_supply':
+      return buildSupplyAttachment(meds)
+    case 'show_symptoms': {
+      const days = typeof a.days === 'number' ? a.days : 7
+      const symptom = typeof a.symptom === 'string' ? a.symptom : null
+      return buildSymptomsAttachment(symptoms, days, symptom)
+    }
+    case 'show_schedule':
+      return buildScheduleAttachment(meds)
+    case 'show_correlations': {
+      const conf = a.confidence
+      const filter =
+        conf === 'strong' || conf === 'consistent' || conf === 'suggestive'
+          ? conf
+          : null
+      return buildCorrelationsAttachment(correlations, filter)
+    }
+    default:
+      return null
+  }
 }
 
 export async function* streamChat(
   history: ChatTurn[],
   userMessage: string,
   opts: StreamChatOptions,
-): AsyncGenerator<string> {
+): AsyncGenerator<StreamYield> {
   if (!ai) {
     throw new Error(
       'Gemini is not configured. Add VITE_GEMINI_API_KEY to argus/.env.local and restart the dev server.',
@@ -217,6 +267,17 @@ export async function* streamChat(
     { role: 'user', parts: [{ text: userMessage }] },
   ]
 
+  const functionDeclarations = [
+    ADD_MEDICATION_DECLARATION,
+    ...CHAT_TOOL_DECLARATIONS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parametersJsonSchema: t.parameters,
+    })),
+  ]
+
+  const seenChartCalls = new Set<string>()
+
   // Loop: stream a response, execute any tool calls, send their results back,
   // continue until the model emits no more tool calls. Bounded to avoid runaway.
   for (let turn = 0; turn < 4; turn++) {
@@ -225,7 +286,7 @@ export async function* streamChat(
       contents,
       config: {
         systemInstruction: buildSystemInstruction(opts.meds),
-        tools: [{ functionDeclarations: [ADD_MEDICATION_DECLARATION] }],
+        tools: [{ functionDeclarations }],
       },
     })
 
@@ -238,7 +299,7 @@ export async function* streamChat(
         // Push the part as-is so we preserve thoughtSignature on functionCall
         // parts — Gemini rejects history that drops it for thinking-enabled models.
         modelParts.push(part)
-        if (part.text) yield part.text
+        if (part.text) yield { type: 'text', text: part.text }
         if (part.functionCall) {
           calls.push({
             name: part.functionCall.name ?? '',
@@ -258,9 +319,30 @@ export async function* streamChat(
         if (call.name === 'add_medication') {
           const input = call.args as unknown as AddMedicationInput
           const result = await opts.tools.addMedication(input)
-          yield `\n\n_added **${result.name}** to your medications._\n`
+          yield { type: 'text', text: `\n\n_added **${result.name}** to your medications._\n` }
           responseParts.push({
             functionResponse: { name: call.name, response: { output: result } },
+          })
+          continue
+        }
+
+        // Chart tools: yield an attachment if it produces one. Dedupe within
+        // a single streamChat run so the same chart isn't rendered twice.
+        const key = `${call.name}|${JSON.stringify(call.args ?? {})}`
+        const attachment = seenChartCalls.has(key)
+          ? null
+          : runChartTool(
+              call.name,
+              call.args,
+              opts.meds,
+              opts.correlations,
+              opts.symptoms,
+            )
+        if (attachment) {
+          seenChartCalls.add(key)
+          yield { type: 'attachment', payload: attachment }
+          responseParts.push({
+            functionResponse: { name: call.name, response: { output: 'rendered' } },
           })
         } else {
           responseParts.push({
@@ -272,7 +354,7 @@ export async function* streamChat(
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        yield `\n\n_failed to ${call.name}: ${message}_\n`
+        yield { type: 'text', text: `\n\n_failed to ${call.name}: ${message}_\n` }
         responseParts.push({
           functionResponse: { name: call.name, response: { error: message } },
         })
