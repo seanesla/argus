@@ -1,9 +1,22 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { isGeminiConfigured, streamChat, type ChatTurn } from '@/lib/gemini'
+import {
+  isGeminiConfigured,
+  pickRelevantCorrelation,
+  streamChat,
+  type ChatTurn,
+} from '@/lib/gemini'
 import { extractSymptoms } from '@/lib/symptomExtractor'
-import { addSymptoms } from '@/lib/symptoms'
+import {
+  correlationKey,
+  findCorrelations,
+  useDismissed,
+  useSymptoms,
+  addSymptoms,
+} from '@/lib/symptoms'
 import { useMedications } from '@/lib/medications'
+import { useConsent } from '@/lib/consent'
+import ConsentModal from '@/components/ConsentModal'
 import {
   getActiveConversation,
   startNewConversation,
@@ -11,6 +24,23 @@ import {
   useActiveConversation,
   type ChatMessage,
 } from '@/lib/chats'
+
+const SEEN_CORRELATIONS_KEY = 'argus.seen-correlations.v1'
+
+function loadSeen(): string[] {
+  try {
+    const raw = localStorage.getItem(SEEN_CORRELATIONS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSeen(keys: string[]): void {
+  localStorage.setItem(SEEN_CORRELATIONS_KEY, JSON.stringify(keys))
+}
 
 const SUGGESTIONS = [
   'felt dizzy this morning around 8',
@@ -33,9 +63,37 @@ export default function ChatPage() {
   const conv = useActiveConversation()
   const messages = conv.messages
   const meds = useMedications()
+  const symptoms = useSymptoms()
+  const dismissed = useDismissed()
+  const consented = useConsent()
   const scrollerRef = useRef<HTMLDivElement>(null)
   const draftRef = useRef<HTMLInputElement>(null)
   const busyRef = useRef(false)
+
+  const correlations = useMemo(
+    () => findCorrelations(symptoms, meds, dismissed),
+    [symptoms, meds, dismissed],
+  )
+  const recentSymptoms = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return symptoms.filter(
+      (s) => new Date(s.occurredAt).getTime() >= cutoff,
+    )
+  }, [symptoms])
+
+  const [seenKeys, setSeenKeys] = useState<string[]>(() => loadSeen())
+  const unseen = useMemo(
+    () => correlations.filter((c) => !seenKeys.includes(correlationKey(c))),
+    [correlations, seenKeys],
+  )
+
+  function dismissToast() {
+    const next = Array.from(
+      new Set([...seenKeys, ...correlations.map(correlationKey)]),
+    )
+    saveSeen(next)
+    setSeenKeys(next)
+  }
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({
@@ -111,7 +169,15 @@ export default function ChatPage() {
 
     try {
       let acc = ''
-      for await (const chunk of streamChat(meds, baseHistory, trimmed)) {
+      const relevant = pickRelevantCorrelation(trimmed, correlations)
+      for await (const chunk of streamChat(
+        meds,
+        correlations,
+        recentSymptoms,
+        relevant?.summary ?? null,
+        baseHistory,
+        trimmed,
+      )) {
         acc += chunk
         setMessages((m) =>
           m.map((msg) =>
@@ -150,8 +216,32 @@ export default function ChatPage() {
     if (draftRef.current) draftRef.current.value = ''
   }
 
+  if (!consented) {
+    return <ConsentModal />
+  }
+
   return (
     <div className="chat">
+      {unseen.length > 0 && (
+        <div className="pattern-toast">
+          <span>argus has noticed a possible pattern.</span>
+          <Link
+            to="/patterns"
+            className="pattern-toast-link"
+            onClick={dismissToast}
+          >
+            open patterns →
+          </Link>
+          <button
+            type="button"
+            className="pattern-toast-close"
+            aria-label="dismiss"
+            onClick={dismissToast}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <header className="chat-header">
         <div className="chat-header-row">
           <h1 className="chat-title">argus</h1>

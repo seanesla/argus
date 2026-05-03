@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   addMedication,
+  markDoseTaken,
   removeMedication,
   updateMedication,
   useMedications,
@@ -174,6 +175,14 @@ export default function MedicationsPage() {
               )}
 
               <div className="med-card-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => markDoseTaken(med.id)}
+                  disabled={med.pillsRemaining <= 0}
+                >
+                  mark as taken
+                </button>
                 <button
                   type="button"
                   className="chip"
