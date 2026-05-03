@@ -272,12 +272,20 @@
   border-bottom: 1px solid var(--border);
 }
 
+.chat-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
 .chat-title {
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 400;
   font-size: 32px;
-  margin: 0 0 6px;
+  margin: 0;
   letter-spacing: 0.01em;
   color: var(--text-h);
 }
@@ -337,6 +345,61 @@
 
 .log-entry-user .log-meta-role {
   color: var(--text);
+}
+
+/* Symptom-logged receipt under a user message */
+.log-receipt {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border);
+  border-left: 2px solid var(--accent);
+  background: var(--accent-bg);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.log-receipt-label {
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.log-receipt-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-receipt-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-receipt-symptom {
+  flex: 1;
+}
+
+.log-receipt-time {
+  color: var(--text-mute);
+}
+
+.log-receipt-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.log-receipt-link:hover {
+  text-decoration: underline;
 }
 
 /* Suggestions */
@@ -428,6 +491,10 @@
   margin-bottom: 28px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
 }
 
 .meds-title {
@@ -875,6 +942,301 @@
   background: var(--alert);
 }
 
+/* ---------------- Mode toggle (sidebar) ---------------- */
+
+.mode-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mode-toggle-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+}
+
+.mode-toggle-pill {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg-2);
+}
+
+.mode-toggle-option {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 4px 0;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mode-toggle-option:hover {
+  color: var(--text);
+}
+
+.mode-toggle-option.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* ---------------- Medication form (inline add/edit) ---------------- */
+
+.med-form {
+  border: 1px solid var(--accent-border);
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: 4px;
+  padding: 18px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.med-form-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.med-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.med-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.med-form-field-wide {
+  grid-column: span 2;
+}
+
+.med-form-field span {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+}
+
+.med-form-field input,
+.med-form-field select {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 7px 9px;
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.med-form-field input:focus,
+.med-form-field select:focus {
+  border-color: var(--accent);
+}
+
+.med-form-field input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.med-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------------- Med card actions + empty state ---------------- */
+
+.med-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.med-card-delete:hover {
+  border-color: var(--alert);
+  color: var(--alert);
+  background: var(--alert-bg);
+}
+
+.meds-empty {
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 28px;
+  text-align: center;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+
+.meds-empty-hint {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ---------------- History page ---------------- */
+
+.history {
+  padding: 36px 0 48px;
+  max-width: 760px;
+}
+
+.history-header {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.history-title {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 32px;
+  margin: 0 0 6px;
+  letter-spacing: 0.01em;
+  color: var(--text-h);
+}
+
+.history-subtitle {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-card {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.history-card:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--accent);
+  background: var(--bg-2);
+}
+
+.history-card-active {
+  border-left-color: var(--accent);
+}
+
+.history-card-main {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-h);
+  font: inherit;
+}
+
+.history-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-card-title {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.history-card-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 2px;
+}
+
+.history-card-preview {
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.history-card-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card-delete {
+  align-self: center;
+  margin-right: 12px;
+}
+
+.history-card-delete:hover {
+  border-color: var(--alert);
+  color: var(--alert);
+  background: var(--alert-bg);
+}
+
 /* ---------------- Responsive ---------------- */
 
 @media (max-width: 768px) {
@@ -911,8 +1273,30 @@
     padding: 24px 16px 48px;
   }
 
+  .meds-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .med-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .med-form-field-wide {
+    grid-column: span 1;
+  }
+
   .patterns {
     padding: 24px 16px 48px;
+  }
+
+  .history {
+    padding: 24px 16px 48px;
+  }
+
+  .history-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .history-entry {

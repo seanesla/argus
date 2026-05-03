@@ -1,6 +1,12 @@
+import { useEffect, useState } from 'react'
+import { getMode, MODE_EVENT } from './mode'
 import type { Correlation, Medication, SymptomEntry } from '@/types'
 
-export const STORAGE_KEY = 'argus.symptoms'
+const SYMPTOMS_EVENT = 'argus:symptoms-change'
+
+function storageKey(): string {
+  return getMode() === 'demo' ? 'argus.demo.symptoms' : 'argus.real.symptoms'
+}
 
 export const LOOKBACK_DAYS = 14
 export const WINDOW_MINUTES = 90
@@ -9,7 +15,7 @@ const MIN_RATIO = 0.5
 
 export function loadSymptoms(): SymptomEntry[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey())
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as SymptomEntry[]) : []
@@ -19,7 +25,8 @@ export function loadSymptoms(): SymptomEntry[] {
 }
 
 export function saveSymptoms(entries: SymptomEntry[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+  localStorage.setItem(storageKey(), JSON.stringify(entries))
+  window.dispatchEvent(new Event(SYMPTOMS_EVENT))
 }
 
 export function addSymptoms(newEntries: SymptomEntry[]): SymptomEntry[] {
@@ -35,7 +42,8 @@ export function removeSymptom(id: string): SymptomEntry[] {
 }
 
 export function clearSymptoms(): void {
-  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(storageKey())
+  window.dispatchEvent(new Event(SYMPTOMS_EVENT))
 }
 
 function startOfDay(d: Date): Date {
@@ -197,7 +205,9 @@ export function seedDemoData(today = new Date()): SymptomEntry[] {
 }
 
 export function ensureSeededOnFirstLoad(): SymptomEntry[] {
-  if (localStorage.getItem(STORAGE_KEY) !== null) return loadSymptoms()
+  // Real mode never auto-seeds — start empty.
+  if (getMode() !== 'demo') return loadSymptoms()
+  if (localStorage.getItem(storageKey()) !== null) return loadSymptoms()
   const seeded = seedDemoData()
   saveSymptoms(seeded)
   return seeded
@@ -207,4 +217,20 @@ export function resetDemoData(): SymptomEntry[] {
   const seeded = seedDemoData()
   saveSymptoms(seeded)
   return seeded
+}
+
+export function useSymptoms(): SymptomEntry[] {
+  const [entries, setEntries] = useState<SymptomEntry[]>(() =>
+    ensureSeededOnFirstLoad(),
+  )
+  useEffect(() => {
+    const refresh = () => setEntries(ensureSeededOnFirstLoad())
+    window.addEventListener(SYMPTOMS_EVENT, refresh)
+    window.addEventListener(MODE_EVENT, refresh)
+    return () => {
+      window.removeEventListener(SYMPTOMS_EVENT, refresh)
+      window.removeEventListener(MODE_EVENT, refresh)
+    }
+  }, [])
+  return entries
 }

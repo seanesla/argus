@@ -1,5 +1,13 @@
-import { medications } from '../data/medications'
-import type { Medication } from '../types'
+import { useState } from 'react'
+import {
+  addMedication,
+  removeMedication,
+  updateMedication,
+  useMedications,
+} from '@/lib/medications'
+import { setMode, useMode } from '@/lib/mode'
+import MedicationForm from '@/components/MedicationForm'
+import type { Medication } from '@/types'
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Ongoing'
@@ -26,19 +34,87 @@ function lowStock(med: Medication) {
 }
 
 export default function MedicationsPage() {
+  const meds = useMedications()
+  const mode = useMode()
+  const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  function onAdd(m: Medication) {
+    addMedication(m)
+    setAdding(false)
+  }
+
+  function onUpdate(m: Medication) {
+    updateMedication(m.id, m)
+    setEditingId(null)
+  }
+
+  function onDelete(id: string, name: string) {
+    if (!confirm(`remove ${name}?`)) return
+    removeMedication(id)
+  }
+
   return (
     <div className="meds">
       <header className="meds-header">
         <div>
           <h1 className="meds-title">Medications</h1>
           <p className="meds-subtitle">
-            {medications.length} active prescriptions tracked by Argus.
+            {meds.length === 0
+              ? 'no medications yet.'
+              : `${meds.length} active prescription${meds.length === 1 ? '' : 's'} tracked by Argus.`}
           </p>
         </div>
+        {!adding && (
+          <button
+            type="button"
+            className="composer-send"
+            onClick={() => setAdding(true)}
+          >
+            + add medication
+          </button>
+        )}
       </header>
 
+      {adding && (
+        <MedicationForm onSave={onAdd} onCancel={() => setAdding(false)} />
+      )}
+
+      {meds.length === 0 && !adding && (
+        <div className="meds-empty">
+          <p>no medications on file.</p>
+          <p className="meds-empty-hint">
+            {mode === 'real' ? (
+              <>
+                add your first medication above, or{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setMode('demo')}
+                >
+                  switch to demo mode
+                </button>{' '}
+                to see an example.
+              </>
+            ) : (
+              <>add your first medication above.</>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="meds-grid">
-        {medications.map((med) => {
+        {meds.map((med) => {
+          if (editingId === med.id) {
+            return (
+              <MedicationForm
+                key={med.id}
+                initial={med}
+                onSave={onUpdate}
+                onCancel={() => setEditingId(null)}
+              />
+            )
+          }
           const low = lowStock(med)
           return (
             <article key={med.id} className={`med-card${low ? ' med-card-low' : ''}`}>
@@ -96,6 +172,23 @@ export default function MedicationsPage() {
                     : 'no refills left, doctor approval needed.'}
                 </div>
               )}
+
+              <div className="med-card-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setEditingId(med.id)}
+                >
+                  edit
+                </button>
+                <button
+                  type="button"
+                  className="chip med-card-delete"
+                  onClick={() => onDelete(med.id, med.name)}
+                >
+                  delete
+                </button>
+              </div>
             </article>
           )
         })}
